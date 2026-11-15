@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f4c81">
+<title>FreshTag AI</title>
+<!--
+  FreshTag AI — เว็บแอปสแกนฉลากบ่งชี้ความสดของปลา
+  -----------------------------------------------------------------
+  วิธีเชื่อมแบบจำลอง: เปิดแอป > แท็บ "ตั้งค่า" > วางลิงก์ Teachable Machine > บันทึก
+  หรือใส่ลิงก์ใน DEFAULT_MODEL_URL ด้านล่าง (ใช้เป็นค่าเริ่มต้นสำหรับทุกเครื่อง)
+
+  ถ้าแบบจำลองโหลดไม่ขึ้น ให้เปลี่ยน 2 บรรทัด <script src=...> ด้านล่าง
+  เป็นบรรทัดเดียวกับในหน้า Export Model > Tensorflow.js ของ Teachable Machine
+-->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5/dist/teachablemachine-image.min.js"></script>
+<style>
+  :root{
+    --brand:#0f4c81; --brand-2:#1f7a8c; --bg:#f4f7fa; --card:#ffffff; --ink:#1b2430; --muted:#5f6b7a;
+    --fresh:#1e9e5a; --warn:#e3a008; --spoil:#d64545; --unsure:#7a869a; --line:#dde3ea;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:"Sarabun","Noto Sans Thai","Leelawadee UI","Tahoma",sans-serif;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.5;-webkit-tap-highlight-color:transparent}
+  header{background:var(--brand);color:#fff;padding:14px 18px calc(14px) 18px;padding-top:calc(14px + env(safe-area-inset-top));display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:5}
+  header .logo{width:34px;height:34px;border-radius:9px;background:#fff;display:grid;place-items:center}
+  header h1{font-size:20px;font-weight:700;letter-spacing:.2px}
+  header small{display:block;font-size:12px;opacity:.85;font-weight:400}
+  main{max-width:520px;margin:0 auto;padding:16px 16px 96px}
+  .screen{display:none}
+  .screen.active{display:block}
+  .card{background:var(--card);border-radius:16px;padding:18px;box-shadow:0 1px 3px rgba(16,24,40,.06),0 1px 2px rgba(16,24,40,.04);margin-bottom:14px}
+  h2{font-size:19px;margin-bottom:8px}
+  p.muted,.muted{color:var(--muted);font-size:14px}
+  .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:0;border-radius:12px;padding:14px 16px;font:inherit;font-size:17px;font-weight:700;cursor:pointer;background:var(--brand);color:#fff}
+  .btn.secondary{background:#e8eef5;color:var(--brand)}
+  .btn.ghost{background:transparent;color:var(--brand);border:1.5px solid var(--line)}
+  .btn:disabled{opacity:.5}
+  .row{display:flex;gap:10px}
+  .row>*{flex:1}
+  ol.steps{padding-left:22px;margin-top:6px}
+  ol.steps li{margin:4px 0;font-size:15px}
+  .status{display:flex;align-items:center;gap:8px;font-size:14px;padding:10px 12px;border-radius:10px;background:#eef2f6;margin-bottom:14px}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--unsure);flex:none}
+  .dot.ok{background:var(--fresh)} .dot.err{background:var(--spoil)} .dot.load{background:var(--warn)}
+  /* camera */
+  .cam-wrap{position:relative;width:100%;aspect-ratio:3/4;background:#0b1118;border-radius:16px;overflow:hidden}
+  .cam-wrap video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .guide{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:62%;aspect-ratio:1/1;border-radius:10px;box-shadow:0 0 0 9999px rgba(0,0,0,.45)}
+  .guide i{position:absolute;width:26px;height:26px;border:4px solid #fff}
+  .guide i:nth-child(1){left:-2px;top:-2px;border-right:0;border-bottom:0;border-top-left-radius:10px}
+  .guide i:nth-child(2){right:-2px;top:-2px;border-left:0;border-bottom:0;border-top-right-radius:10px}
+  .guide i:nth-child(3){left:-2px;bottom:-2px;border-right:0;border-top:0;border-bottom-left-radius:10px}
+  .guide i:nth-child(4){right:-2px;bottom:-2px;border-left:0;border-top:0;border-bottom-right-radius:10px}
+  .cam-hint{position:absolute;left:0;right:0;bottom:12px;text-align:center;color:#fff;font-size:14px;text-shadow:0 1px 3px rgba(0,0,0,.6);padding:0 12px}
+  .cam-msg{position:absolute;inset:0;display:grid;place-items:center;color:#cfd8e3;text-align:center;padding:24px;font-size:15px}
+  /* result */
+  .verdict{border-radius:16px;padding:22px 18px;color:#fff;text-align:center;margin-bottom:14px}
+  .verdict .icon{font-size:44px;line-height:1}
+  .verdict .label{font-size:30px;font-weight:800;margin-top:6px}
+  .verdict .en{font-size:14px;opacity:.9;letter-spacing:1px}
+  .verdict .advice{margin-top:10px;font-size:16px;background:rgba(255,255,255,.16);border-radius:10px;padding:8px 10px}
+  .v-FRESH{background:var(--fresh)} .v-WARNING{background:var(--warn)} .v-SPOILED{background:var(--spoil)} .v-UNSURE{background:var(--unsure)} .v-NONE{background:var(--brand-2)}
+  .bars .bar{margin:10px 0}
+  .bars .top{display:flex;justify-content:space-between;font-size:15px}
+  .bars .track{height:10px;border-radius:6px;background:#edf1f5;overflow:hidden;margin-top:4px}
+  .bars .fill{height:100%;border-radius:6px}
+  .shot{display:flex;gap:14px;align-items:center}
+  .shot canvas,.shot img{width:96px;height:96px;border-radius:10px;border:1px solid var(--line);flex:none}
+  .colorinfo{font-size:14px;color:var(--muted)}
+  .colorinfo b{color:var(--ink)}
+  .swatch{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;border:1px solid rgba(0,0,0,.15);margin-right:4px}
+  /* history */
+  .hist-item{display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+  .hist-item:last-child{border-bottom:0}
+  .hist-item img{width:52px;height:52px;border-radius:8px;flex:none;border:1px solid var(--line)}
+  .pill{display:inline-block;font-size:13px;font-weight:700;color:#fff;border-radius:999px;padding:2px 10px}
+  .p-FRESH{background:var(--fresh)} .p-WARNING{background:var(--warn)} .p-SPOILED{background:var(--spoil)} .p-UNSURE,.p-NONE{background:var(--unsure)}
+  label.f{display:block;font-size:14px;font-weight:700;margin:12px 0 6px}
+  input[type=text],input[type=number]{width:100%;font:inherit;padding:12px;border-radius:10px;border:1.5px solid var(--line);background:#fff}
+  .note{font-size:13px;color:var(--muted);margin-top:6px}
+  /* nav */
+  nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:6}
+  nav button{flex:1;border:0;background:none;font:inherit;font-size:12px;color:var(--muted);padding:9px 0 8px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
+  nav button svg{width:24px;height:24px}
+  nav button.active{color:var(--brand);font-weight:700}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="24" height="24"><path d="M3 12c3-5 9-6 13-3l4-3v12l-4-3c-4 3-10 2-13-3z" fill="#0f4c81"/><circle cx="14.5" cy="11" r="1.2" fill="#fff"/></svg>
+  </div>
+  <div><h1>FreshTag AI</h1><small>สแกนฉลากตรวจความสดของปลา</small></div>
+</header>
+
+<main>
+  <!-- HOME -->
+  <section id="home" class="screen active">
+    <div class="status" id="modelStatus"><span class="dot"></span><span>กำลังตรวจสอบแบบจำลอง…</span></div>
+    <div class="card">
+      <h2>ตรวจความสดของปลาจากฉลาก</h2>
+      <p class="muted">ฉลาก FreshTag ติดอยู่ใต้ฝากล่องปลา สีของฉลากเปลี่ยนเมื่อปลาเริ่มเสีย แอปนี้ใช้ AI อ่านสีของฉลากแล้วบอกระดับความสด</p>
+      <div style="height:14px"></div>
+      <button class="btn" onclick="go('scan')">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3"/></svg>
+        สแกนฉลาก
+      </button>
+    </div>
+    <div class="card">
+      <h2>วิธีสแกนให้แม่นยำ</h2>
+      <ol class="steps">
+        <li>วางฉลากให้อยู่ในกรอบเล็งบนหน้าจอ ให้มุมสีดำตรงกับมุมกรอบ</li>
+        <li>ถือโทรศัพท์ขนานกับฝากล่อง</li>
+        <li>ปิดแฟลช และหลบเงาหรือแสงสะท้อนบนฝา</li>
+        <li>สแกนในแสงในอาคารหรือแสงธรรมชาติที่ไม่ส่องตรง</li>
+      </ol>
+    </div>
+    <p class="muted" style="text-align:center">ธรรมชาติตรวจจับ — AI แปลผล — มนุษย์ตัดสินใจ</p>
+  </section>
+
+  <!-- SCAN -->
+  <section id="scan" class="screen">
+    <div class="cam-wrap" id="camWrap">
+      <video id="video" playsinline muted autoplay></video>
+      <div class="cam-msg" id="camMsg">กำลังเปิดกล้อง…</div>
+      <div class="guide" id="guide"><i></i><i></i><i></i><i></i></div>
+      <div class="cam-hint">จัดฉลากให้อยู่ในกรอบ แล้วกด "ตรวจ"</div>
+    </div>
+    <div style="height:14px"></div>
+    <button class="btn" id="btnShoot" onclick="shoot()">ตรวจ</button>
+    <div style="height:10px"></div>
+    <div class="row">
+      <button class="btn secondary" onclick="document.getElementById('fileIn').click()">เลือกรูปจากเครื่อง</button>
+      <button class="btn ghost" onclick="go('home')">กลับ</button>
+    </div>
+    <input type="file" id="fileIn" accept="image/*" class="hidden" onchange="fromFile(event)">
+    <p class="note" style="text-align:center;margin-top:10px">รูปจากเครื่องควรครอปเฉพาะฉลากไว้แล้ว แอปจะใช้สี่เหลี่ยมจัตุรัสตรงกลางภาพ</p>
+  </section>
+
+  <!-- RESULT -->
+  <section id="result" class="screen">
+    <div class="verdict v-NONE" id="verdict">
+      <div class="icon" id="vIcon">…</div>
+      <div class="label" id="vLabel">-</div>
+      <div class="en" id="vEn"></div>
+      <div class="advice" id="vAdvice"></div>
+    </div>
+    <div class="card" id="barsCard">
+      <h2>ค่าความมั่นใจของ AI</h2>
+      <p class="muted">ความน่าจะเป็นที่ AI ให้กับแต่ละระดับ ไม่ใช่เปอร์เซ็นต์ความสดของปลา</p>
+      <div class="bars" id="bars"></div>
+    </div>
+    <div class="card">
+      <h2>ภาพฉลากที่ตรวจ</h2>
+      <div class="shot">
+        <canvas id="thumb" width="224" height="224"></canvas>
+        <div class="colorinfo" id="colorInfo"></div>
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn" onclick="go('scan')">สแกนอีกครั้ง</button>
+      <button class="btn secondary" onclick="go('history')">ประวัติ</button>
+    </div>
+  </section>
+
+  <!-- HISTORY -->
+  <section id="history" class="screen">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h2>ประวัติการตรวจ</h2>
+        <button class="btn ghost" style="width:auto;padding:6px 12px;font-size:14px" onclick="exportCSV()">ส่งออก CSV</button>
+      </div>
+      <div id="histList"></div>
+    </div>
+    <button class="btn ghost" onclick="clearHistory()">ล้างประวัติทั้งหมด</button>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="settings" class="screen">
+    <div class="card">
+      <h2>เชื่อมแบบจำลอง Teachable Machine</h2>
+      <label class="f" for="urlIn">ลิงก์แบบจำลอง</label>
+      <input type="text" id="urlIn" placeholder="https://teachablemachine.withgoogle.com/models/xxxx/" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <p class="note">ได้จาก Teachable Machine &gt; Export Model &gt; Tensorflow.js &gt; Upload my model</p>
+      <label class="f" for="thrIn">เกณฑ์ "ไม่แน่ใจ" (%)</label>
+      <input type="number" id="thrIn" min="0" max="100" step="5">
+      <p class="note">ถ้าค่าความมั่นใจสูงสุดต่ำกว่าค่านี้ แอปจะขอให้สแกนใหม่แทนการเดา</p>
+      <div style="height:14px"></div>
+      <button class="btn" onclick="saveSettings()">บันทึกและโหลดแบบจำลอง</button>
+      <div style="height:10px"></div>
+      <div class="status" id="modelStatus2"><span class="dot"></span><span>-</span></div>
+      <div id="classInfo" class="note"></div>
+    </div>
+    <div class="card">
+      <h2>ชื่อคลาสที่แอปรู้จัก</h2>
+      <p class="muted">ตั้งชื่อคลาสใน Teachable Machine เป็นอย่างใดอย่างหนึ่งต่อไปนี้ (ไม่สนตัวพิมพ์เล็ก-ใหญ่)</p>
+      <ol class="steps">
+        <li><b>สด:</b> FRESH หรือ สด</li>
+        <li><b>เริ่มเสื่อม:</b> WARNING หรือ เริ่มเสื่อม</li>
+        <li><b>ไม่สด:</b> SPOILED หรือ ไม่สด</li>
+      </ol>
+    </div>
+  </section>
+</main>
+
+<nav>
+  <button data-go="home" class="active" onclick="go('home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>หน้าหลัก</button>
+  <button data-go="scan" onclick="go('scan')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3"/></svg>สแกน</button>
+  <button data-go="history" onclick="go('history')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>ประวัติ</button>
+  <button data-go="settings" onclick="go('settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>ตั้งค่า</button>
+</nav>
+
+<script>
+/* ================== ตั้งค่า ================== */
+const DEFAULT_MODEL_URL = "";      // ใส่ลิงก์ Teachable Machine ที่นี่ได้ เช่น "https://teachablemachine.withgoogle.com/models/xxxx/"
+const DEFAULT_THRESHOLD = 60;      // เกณฑ์ไม่แน่ใจ (%)
+const GUIDE_RATIO = 0.62;          // ขนาดกรอบเล็ง เทียบกับด้านกว้างของภาพ (ต้องตรงกับ .guide width ใน CSS)
+const MAX_HISTORY = 50;
+
+const LEVELS = {
+  FRESH:   { th:"สด",         en:"FRESH",   icon:"✓", color:"var(--fresh)", advice:"บริโภคได้ ควรเก็บในตู้เย็น" },
+  WARNING: { th:"เริ่มเสื่อม",  en:"WARNING", icon:"!", color:"var(--warn)",  advice:"ควรปรุงให้สุกและบริโภคโดยเร็ว" },
+  SPOILED: { th:"ไม่สด",       en:"SPOILED", icon:"✕", color:"var(--spoil)", advice:"ไม่ควรบริโภค" },
+  UNSURE:  { th:"ไม่แน่ใจ",     en:"UNSURE",  icon:"?", color:"var(--unsure)", advice:"กรุณาจัดฉลากให้อยู่ในกรอบ หลบแสงสะท้อน แล้วสแกนใหม่" },
+  NONE:    { th:"ยังไม่มีแบบจำลอง", en:"COLOR ONLY", icon:"◎", color:"var(--brand-2)", advice:"แสดงเฉพาะค่าสีของฉลาก เชื่อมแบบจำลองได้ที่แท็บตั้งค่า" }
+};
+const ALIASES = { FRESH:["fresh","สด"], WARNING:["warning","warn","เริ่มเสื่อม","เริ่มเสีย"], SPOILED:["spoiled","spoil","ไม่สด","เสีย"] };
+
+/* ================== storage (ปลอดภัย) ================== */
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v===null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
+};
+
+/* ================== state ================== */
+let model = null, stream = null;
+let modelUrl = store.get("ft_model_url", DEFAULT_MODEL_URL) || DEFAULT_MODEL_URL;
+let threshold = store.get("ft_threshold", DEFAULT_THRESHOLD);
+
+/* ================== navigation ================== */
+function go(id){
+  document.querySelectorAll(".screen").forEach(s => s.classList.toggle("active", s.id === id));
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("active", b.dataset.go === id));
+  if (id === "scan") startCamera(); else stopCamera();
+  if (id === "history") renderHistory();
+  if (id === "settings") fillSettings();
+  window.scrollTo(0,0);
+}
+
+/* ================== model ================== */
+function setStatus(state, text){
+  ["modelStatus","modelStatus2"].forEach(id => {
+    const el = document.getElementById(id); if(!el) return;
+    el.querySelector(".dot").className = "dot " + (state||"");
+    el.querySelector("span:last-child").textContent = text;
+  });
+}
+function normUrl(u){ u = (u||"").trim(); if (u && !u.endsWith("/")) u += "/"; return u; }
+function mapClass(name){
+  const n = (name||"").trim().toLowerCase();
+  for (const key in ALIASES) if (ALIASES[key].includes(n)) return key;
+  return null;
+}
+async function loadModel(){
+  model = null;
+  document.getElementById("classInfo").textContent = "";
+  if (!modelUrl){ setStatus("", "ยังไม่ได้เชื่อมแบบจำลอง — แอปจะแสดงเฉพาะค่าสีของฉลาก"); return; }
+  if (typeof tmImage === "undefined"){ setStatus("err", "โหลดไลบรารี AI ไม่ได้ ตรวจสอบอินเทอร์เน็ต"); return; }
+  setStatus("load", "กำลังโหลดแบบจำลอง…");
+  try{
+    const u = normUrl(modelUrl);
+    model = await tmImage.load(u + "model.json", u + "metadata.json");
+    const labels = model.getClassLabels();
+    const unknown = labels.filter(l => !mapClass(l));
+    setStatus("ok", "แบบจำลองพร้อมใช้งาน (" + labels.length + " คลาส)");
+    document.getElementById("classInfo").textContent = "คลาสในแบบจำลอง: " + labels.join(", ") +
+      (unknown.length ? "  —  ไม่รู้จักชื่อ: " + unknown.join(", ") + " (จะแสดงชื่อตามเดิม)" : "");
+  }catch(e){
+    model = null;
+    setStatus("err", "โหลดแบบจำลองไม่สำเร็จ ตรวจสอบลิงก์อีกครั้ง");
+    console.error(e);
+  }
+}
+
+/* ================== camera ================== */
+async function startCamera(){
+  const msg = document.getElementById("camMsg"), video = document.getElementById("video");
+  if (stream) return;
+  msg.classList.remove("hidden"); msg.textContent = "กำลังเปิดกล้อง…";
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    msg.textContent = "เบราว์เซอร์นี้เปิดกล้องไม่ได้ (ต้องเปิดผ่านลิงก์ https) ใช้ปุ่ม \"เลือกรูปจากเครื่อง\" แทนได้"; return;
+  }
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:"environment" }, width:{ ideal:1280 }, height:{ ideal:1280 } }, audio:false });
+    video.srcObject = stream; await video.play();
+    msg.classList.add("hidden");
+  }catch(e){
+    msg.textContent = "เปิดกล้องไม่ได้ กรุณาอนุญาตการใช้กล้อง หรือใช้ปุ่ม \"เลือกรูปจากเครื่อง\"";
+    stream = null;
+  }
+}
+function stopCamera(){
+  if (stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
+}
+
+/* ================== crop ================== */
+// ครอปเฉพาะพื้นที่ในกรอบเล็งจากวิดีโอ (วิดีโอแสดงแบบ object-fit: cover) เป็นภาพ 224x224
+function cropFromVideo(video, W, H){
+  const sw = video.videoWidth, sh = video.videoHeight;
+  const scale = Math.max(W / sw, H / sh);          // พิกเซลจอ ต่อ พิกเซลวิดีโอ
+  const s = Math.min(GUIDE_RATIO * W / scale, sw, sh);
+  const out = document.createElement("canvas"); out.width = out.height = 224;
+  out.getContext("2d").drawImage(video, (sw - s) / 2, (sh - s) / 2, s, s, 0, 0, 224, 224);
+  return out;
+}
+// รูปจากเครื่อง: ใช้สี่เหลี่ยมจัตุรัสตรงกลางทั้งภาพ (ควรเป็นรูปที่ครอปเฉพาะฉลากแล้ว)
+function cropFromImage(img){
+  const w = img.naturalWidth, h = img.naturalHeight, s = Math.min(w, h);
+  const out = document.createElement("canvas"); out.width = out.height = 224;
+  out.getContext("2d").drawImage(img, (w - s) / 2, (h - s) / 2, s, s, 0, 0, 224, 224);
+  return out;
+}
+
+/* ================== color ================== */
+function colorStats(canvas){
+  const ctx = canvas.getContext("2d");
+  const m = 56, w = canvas.width - 2*m;              // ใช้กลางภาพ 50% (บริเวณแผ่นตรวจ)
+  const d = ctx.getImageData(m, m, w, w).data;
+  let r=0,g=0,b=0,n=0;
+  for (let i=0;i<d.length;i+=4){ r+=d[i]; g+=d[i+1]; b+=d[i+2]; n++; }
+  r=Math.round(r/n); g=Math.round(g/n); b=Math.round(b/n);
+  const R=r/255,G=g/255,B=b/255, mx=Math.max(R,G,B), mn=Math.min(R,G,B), df=mx-mn;
+  let h=0; if(df){ if(mx===R) h=((G-B)/df)%6; else if(mx===G) h=(B-R)/df+2; else h=(R-G)/df+4; h=Math.round(h*60); if(h<0) h+=360; }
+  const s = mx ? Math.round(df/mx*100) : 0, v = Math.round(mx*100);
+  return { r,g,b,h,s,v };
+}
+
+/* ================== analyze ================== */
+async function shoot(){
+  const video = document.getElementById("video");
+  if (!stream || !video.videoWidth){ alertMsg("กล้องยังไม่พร้อม ใช้ \"เลือกรูปจากเครื่อง\" แทนได้"); return; }
+  const wrap = document.getElementById("camWrap").getBoundingClientRect();
+  const crop = cropFromVideo(video, wrap.width, wrap.height);
+  await analyze(crop);
+}
+function fromFile(ev){
+  const f = ev.target.files && ev.target.files[0]; if(!f) return;
+  const img = new Image();
+  img.onload = async () => {
+    const out = cropFromImage(img);
+    URL.revokeObjectURL(img.src);
+    await analyze(out);
+  };
+  img.src = URL.createObjectURL(f);
+  ev.target.value = "";
+}
+function alertMsg(t){ const m = document.getElementById("camMsg"); m.classList.remove("hidden"); m.textContent = t; }
+
+async function analyze(canvas){
+  const btn = document.getElementById("btnShoot"); btn.disabled = true; btn.textContent = "กำลังวิเคราะห์…";
+  const col = colorStats(canvas);
+  let level = "NONE", probs = [];
+  if (model){
+    try{
+      const pred = await model.predict(canvas);
+      probs = pred.map(p => ({ key: mapClass(p.className), name: p.className, p: p.probability }))
+                  .sort((a,b) => b.p - a.p);
+      const top = probs[0];
+      level = (top.p * 100 < threshold) ? "UNSURE" : (top.key || "UNSURE");
+      if (!top.key && top.p * 100 >= threshold) level = "CUSTOM:" + top.name;
+    }catch(e){ console.error(e); level = "NONE"; }
+  }
+  showResult(level, probs, col, canvas);
+  saveHistory(level, probs, col, canvas);
+  btn.disabled = false; btn.textContent = "ตรวจ";
+  go("result");
+}
+
+/* ================== result ================== */
+function levelInfo(level){
+  if (level.startsWith("CUSTOM:")) return { th: level.slice(7), en:"", icon:"•", advice:"ชื่อคลาสนี้ไม่ตรงกับที่แอปรู้จัก ดูได้ที่แท็บตั้งค่า", cls:"NONE" };
+  return Object.assign({ cls: level }, LEVELS[level]);
+}
+function showResult(level, probs, col, canvas){
+  const L = levelInfo(level);
+  const v = document.getElementById("verdict"); v.className = "verdict v-" + L.cls;
+  document.getElementById("vIcon").textContent = L.icon;
+  document.getElementById("vLabel").textContent = L.th;
+  document.getElementById("vEn").textContent = L.en;
+  document.getElementById("vAdvice").textContent = L.advice;
+
+  const bars = document.getElementById("bars"); bars.innerHTML = "";
+  document.getElementById("barsCard").classList.toggle("hidden", !probs.length);
+  const order = ["FRESH","WARNING","SPOILED"];
+  probs.slice().sort((a,b) => (order.indexOf(a.key) + 9*(a.key?0:1)) - (order.indexOf(b.key) + 9*(b.key?0:1))).forEach(p => {
+    const info = p.key ? LEVELS[p.key] : { th: p.name, color: "var(--unsure)" };
+    const pct = (p.p * 100).toFixed(1);
+    bars.insertAdjacentHTML("beforeend",
+      `<div class="bar"><div class="top"><span>${esc(info.th)}</span><b>${pct}%</b></div>
+       <div class="track"><div class="fill" style="width:${pct}%;background:${info.color}"></div></div></div>`);
+  });
+
+  const t = document.getElementById("thumb"); t.getContext("2d").drawImage(canvas, 0, 0, 224, 224);
+  document.getElementById("colorInfo").innerHTML =
+    `<span class="swatch" style="background:rgb(${col.r},${col.g},${col.b})"></span>สีเฉลี่ยกลางฉลาก<br>
+     R <b>${col.r}</b> &nbsp; G <b>${col.g}</b> &nbsp; B <b>${col.b}</b><br>
+     Hue <b>${col.h}°</b> &nbsp; S <b>${col.s}%</b> &nbsp; V <b>${col.v}%</b>`;
+}
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
+
+/* ================== history ================== */
+function saveHistory(level, probs, col, canvas){
+  const tn = document.createElement("canvas"); tn.width = tn.height = 72;
+  tn.getContext("2d").drawImage(canvas, 0, 0, 72, 72);
+  const item = { t: Date.now(), level, top: probs[0] ? Math.round(probs[0].p*1000)/10 : null,
+                 probs: probs.map(p => ({ n: p.name, p: Math.round(p.p*1000)/10 })), col, img: tn.toDataURL("image/jpeg", 0.7) };
+  const h = store.get("ft_history", []); h.unshift(item); store.set("ft_history", h.slice(0, MAX_HISTORY));
+}
+function renderHistory(){
+  const h = store.get("ft_history", []), el = document.getElementById("histList");
+  if (!h.length){ el.innerHTML = '<p class="muted" style="padding:10px 0">ยังไม่มีประวัติการตรวจ</p>'; return; }
+  el.innerHTML = h.map(it => {
+    const L = levelInfo(it.level), d = new Date(it.t);
+    const when = d.toLocaleDateString("th-TH", { day:"numeric", month:"short" }) + " " + d.toLocaleTimeString("th-TH", { hour:"2-digit", minute:"2-digit" });
+    return `<div class="hist-item"><img src="${it.img}" alt="">
+      <div style="flex:1"><span class="pill p-${L.cls}">${esc(L.th)}</span>
+      ${it.top !== null ? `<span class="muted"> ความมั่นใจ ${it.top}%</span>` : ""}
+      <div class="muted">${when} · Hue ${it.col.h}°</div></div></div>`;
+  }).join("");
+}
+function clearHistory(){
+  if (!store.get("ft_history", []).length) return;
+  store.set("ft_history", []); renderHistory();
+}
+function exportCSV(){
+  const h = store.get("ft_history", []); if (!h.length) return;
+  const rows = [["เวลา","ผล","ความมั่นใจสูงสุด(%)","R","G","B","Hue","S","V","ความมั่นใจรายคลาส"]];
+  h.forEach(it => rows.push([new Date(it.t).toLocaleString("th-TH"), levelInfo(it.level).th, it.top ?? "",
+    it.col.r, it.col.g, it.col.b, it.col.h, it.col.s, it.col.v, it.probs.map(p => p.n + ":" + p.p).join(" | ")]));
+  const csv = "﻿" + rows.map(r => r.map(x => '"' + String(x).replace(/"/g,'""') + '"').join(",")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type:"text/csv;charset=utf-8" }));
+  a.download = "freshtag_history.csv"; a.click();
+}
+
+/* ================== settings ================== */
+function fillSettings(){
+  document.getElementById("urlIn").value = modelUrl || "";
+  document.getElementById("thrIn").value = threshold;
+}
+async function saveSettings(){
+  modelUrl = normUrl(document.getElementById("urlIn").value);
+  const t = parseFloat(document.getElementById("thrIn").value);
+  threshold = isNaN(t) ? DEFAULT_THRESHOLD : Math.min(100, Math.max(0, t));
+  store.set("ft_model_url", modelUrl); store.set("ft_threshold", threshold);
+  await loadModel();
+}
+
+/* ================== start ================== */
+loadModel();
+</script>
+</body>
+</html>
