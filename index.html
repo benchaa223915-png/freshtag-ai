@@ -94,7 +94,7 @@
   .verdict .label{font-size:32px;font-weight:700;margin-top:8px}
   .verdict .en{font-size:13px;opacity:.9;letter-spacing:2px}
   .verdict .advice{margin-top:12px;font-size:16px;background:rgba(255,255,255,.18);border-radius:12px;padding:9px 12px}
-  .v-FRESH{background:linear-gradient(135deg,#0f8f5c,#2cc17f)} .v-WARNING{background:linear-gradient(135deg,#d48806,#f2b632)} .v-SPOILED{background:linear-gradient(135deg,#c73636,#ef6b5b)} .v-UNSURE{background:linear-gradient(135deg,#5f6b7d,#8a96a8)} .v-NONE{background:linear-gradient(135deg,var(--brand),var(--brand-2))}
+  .v-NOTFRESH{background:linear-gradient(135deg,#d48806,#f2b632)} .v-FRESH{background:linear-gradient(135deg,#0f8f5c,#2cc17f)} .v-WARNING{background:linear-gradient(135deg,#d48806,#f2b632)} .v-SPOILED{background:linear-gradient(135deg,#c73636,#ef6b5b)} .v-UNSURE{background:linear-gradient(135deg,#5f6b7d,#8a96a8)} .v-NONE{background:linear-gradient(135deg,var(--brand),var(--brand-2))}
   .bars .bar{margin:12px 0}
   .bars .top{display:flex;justify-content:space-between;font-size:15px}
   .bars .track{height:12px;border-radius:8px;background:#edf2f6;overflow:hidden;margin-top:5px}
@@ -109,7 +109,7 @@
   .hist-item:last-child{border-bottom:0}
   .hist-item img{width:54px;height:54px;border-radius:10px;flex:none;border:1px solid var(--line)}
   .pill{display:inline-block;font-size:13px;font-weight:700;color:#fff;border-radius:999px;padding:2px 10px}
-  .p-FRESH{background:var(--fresh)} .p-WARNING{background:var(--warn)} .p-SPOILED{background:var(--spoil)} .p-UNSURE,.p-NONE{background:var(--unsure)}
+  .p-FRESH{background:var(--fresh)} .p-WARNING{background:var(--warn)} .p-SPOILED{background:var(--spoil)} .p-UNSURE,.p-NONE{background:var(--unsure)} .p-NOTFRESH{background:var(--warn)}
   label.f{display:block;font-size:14px;font-weight:700;margin:12px 0 6px}
   input[type=text],input[type=number]{width:100%;font:inherit;padding:12px;border-radius:12px;border:1.5px solid var(--line);background:#fff}
   .note{font-size:13px;color:var(--muted);margin-top:6px}
@@ -161,7 +161,8 @@
     </div>
     <div class="status" id="modelStatus"><span class="dot"></span><span>กำลังตรวจสอบแบบจำลอง…</span></div>
     <div class="card">
-      <h2>สีของฉลาก B (กะหล่ำปลีม่วง)</h2>
+      <h2 style="margin-bottom:2px">ความหมายของสีฉลาก</h2>
+      <p class="muted" style="margin-bottom:12px">ฉลากจากสารสกัดกะหล่ำปลีม่วง</p>
       <div class="levels">
         <div class="lv f"><div class="sw" style="background:#b7aed6"></div><b>สด</b><span>ม่วงอ่อน</span></div>
         <div class="lv w"><div class="sw" style="background:#8fb3cf"></div><b>เริ่มเสื่อม</b><span>ฟ้า</span></div>
@@ -187,7 +188,7 @@
       <video id="video" playsinline muted autoplay></video>
       <div class="cam-msg" id="camMsg">กำลังเปิดกล้อง…</div>
       <div class="guide" id="guide"><i></i><i></i><i></i><i></i><div class="scanline"></div></div>
-      <div class="cam-hint"><b>จัดฉลากทั้งใบให้อยู่ในกรอบ</b></div>
+      <div class="cam-hint"><b id="camHint">สแกนฉลาก B (กะหล่ำปลีม่วง) ให้ทั้งใบอยู่ในกรอบ</b></div>
     </div>
     <button class="shutter" id="btnShoot" onclick="shoot()">ตรวจ</button>
     <div style="height:10px"></div>
@@ -206,6 +207,18 @@
       <div class="en" id="vEn"></div>
       <div class="advice" id="vAdvice"></div>
     </div>
+    <div class="card hidden" id="stepCard" style="border:2px solid var(--warn)">
+      <h2>ขั้นที่ 2: สแกนฉลาก C</h2>
+      <p class="muted">ฉลาก B เปลี่ยนสีแล้ว แปลว่าปลาไม่ใช่ปลาสด สแกนฉลาก C (กระเจี๊ยบแดง) ต่อ เพื่อแยกว่า "เริ่มเสื่อม" หรือ "ไม่สด"</p>
+      <div style="height:12px"></div>
+      <button class="btn" onclick="startC()">สแกนฉลาก C (กระเจี๊ยบแดง)</button>
+      <div style="height:8px"></div>
+      <button class="btn ghost" onclick="skipC()">ข้าม ใช้ฉลาก B อย่างเดียว</button>
+    </div>
+    <div class="card hidden" id="checkCard">
+      <h2>ผลตรวจ 2 ทาง</h2>
+      <div id="checkBody"></div>
+    </div>
     <div class="card" id="barsCard">
       <h2>ค่าความมั่นใจของ AI</h2>
       <p class="muted">ความน่าจะเป็นที่ AI ให้กับแต่ละระดับ ไม่ใช่เปอร์เซ็นต์ความสดของปลา</p>
@@ -218,8 +231,9 @@
         <div class="colorinfo" id="colorInfo"></div>
       </div>
     </div>
+    <button class="btn ghost hidden" id="dlBtn" onclick="dlCrop()" style="margin-bottom:10px">บันทึกภาพนี้ (สำหรับฝึก AI)</button>
     <div class="row">
-      <button class="btn" onclick="go('scan')">สแกนอีกครั้ง</button>
+      <button class="btn" onclick="newScan()">สแกนอีกครั้ง</button>
       <button class="btn secondary" onclick="go('history')">ประวัติ</button>
     </div>
   </section>
@@ -236,14 +250,37 @@
     <button class="btn ghost" onclick="clearHistory()">ล้างประวัติทั้งหมด</button>
   </section>
 
+  <!-- DEV LOCK -->
+  <section id="devlock" class="screen">
+    <div class="card" style="text-align:center;padding:28px 20px">
+      <div style="width:64px;height:64px;border-radius:18px;margin:0 auto 12px;display:grid;place-items:center;background:#e4f0f4;color:var(--brand)">
+        <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      </div>
+      <h2>สำหรับผู้พัฒนา</h2>
+      <p class="muted">ใส่รหัสผ่านเพื่อเข้าหน้าเชื่อมแบบจำลองและตั้งค่าระบบ</p>
+      <input type="password" id="pinIn" inputmode="numeric" placeholder="รหัสผ่าน" style="width:100%;font:inherit;padding:12px;border-radius:12px;border:1.5px solid var(--line);margin:16px 0 6px;text-align:center;letter-spacing:4px" onkeydown="if(event.key==='Enter')unlockDev()">
+      <p class="note" id="pinMsg" style="color:var(--spoil);min-height:20px"></p>
+      <button class="btn" onclick="unlockDev()">เข้าสู่หน้าผู้พัฒนา</button>
+    </div>
+  </section>
+
   <!-- SETTINGS -->
   <section id="settings" class="screen">
     <div class="card">
-      <h2>เชื่อมแบบจำลอง Teachable Machine</h2>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <h2 style="margin:0">เชื่อมแบบจำลอง Teachable Machine</h2>
+        <button class="btn ghost" style="width:auto;padding:6px 12px;font-size:14px" onclick="lockDev()">ล็อก</button>
+      </div>
       <label class="f" for="urlIn">ลิงก์แบบจำลอง</label>
       <input type="text" id="urlIn" placeholder="https://teachablemachine.withgoogle.com/models/xxxx/" autocomplete="off" autocapitalize="off" spellcheck="false">
       <p class="note">ได้จาก Teachable Machine &gt; Export Model &gt; Tensorflow.js &gt; Upload my model</p>
-      <label class="f" for="thrIn">เกณฑ์ "ไม่แน่ใจ" (%)</label>
+      <label class="f" for="modeIn">วิธีตัดสินผล</label>
+      <select id="modeIn" style="width:100%;font:inherit;padding:12px;border-radius:12px;border:1.5px solid var(--line);background:#fff">
+        <option value="combo">ค่าสีฉลาก B + C ร่วมกับ AI (แนะนำ)</option>
+        <option value="ai">AI อย่างเดียว</option>
+      </select>
+      <p class="note">แบบแนะนำใช้เกณฑ์ค่า Hue จากผลการทดลอง: ฉลาก B ตั้งแต่ 215° = สด ถ้าต่ำกว่าให้สแกนฉลาก C ต่อ C ยังเป็นชมพู = เริ่มเสื่อม ไม่ชมพูแล้ว = ไม่สด และแสดงผลของ AI คู่กัน</p>
+      <label class="f" for="thrIn">เกณฑ์ "ไม่แน่ใจ" ของ AI (%)</label>
       <input type="number" id="thrIn" min="0" max="100" step="5">
       <p class="note">ถ้าค่าความมั่นใจสูงสุดต่ำกว่าค่านี้ แอปจะขอให้สแกนใหม่แทนการเดา</p>
       <div style="height:14px"></div>
@@ -297,8 +334,8 @@
   <button data-go="home" class="active" onclick="go('home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>หน้าหลัก</button>
   <button data-go="history" onclick="go('history')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>ประวัติ</button>
   <button data-go="scan" class="scanbtn" onclick="go('scan')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3"/></svg>สแกน</button>
-  <button data-go="credits" onclick="go('credits')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c2.8.3 5 2.6 5 5.8"/></svg>เครดิต</button>
-  <button data-go="settings" onclick="go('settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>ตั้งค่า</button>
+  <button data-go="credits" onclick="go('credits')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c2.8.3 5 2.6 5 5.8"/></svg>ผู้จัดทำ</button>
+  <button data-go="settings" onclick="go('settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>ผู้พัฒนา</button>
 </nav>
 
 <script>
@@ -308,7 +345,7 @@ const DEFAULT_THRESHOLD = 60;      // เกณฑ์ไม่แน่ใจ (%
 const GUIDE_RATIO = 0.62;          // ขนาดกรอบเล็ง เทียบกับด้านกว้างของภาพ (ต้องตรงกับ .guide width ใน CSS)
 const MAX_HISTORY = 50;
 
-/* ===== หน้าเครดิต: แก้ชื่อในเครื่องหมายคำพูดได้เลย ===== */
+/* ===== หน้าผู้จัดทำ: แก้ชื่อในเครื่องหมายคำพูดได้เลย ===== */
 const CREDITS = {
   titleTh: "การพัฒนาฉลากอัจฉริยะจากสารสกัดธรรมชาติร่วมกับปัญญาประดิษฐ์เพื่อประเมินความสดของปลา",
   titleEn: "Development of a Smart Label from Natural Extracts with Artificial Intelligence for Fish Freshness Assessment",
@@ -324,8 +361,10 @@ const LEVELS = {
   WARNING: { th:"เริ่มเสื่อม",  en:"WARNING", icon:"!", color:"var(--warn)",  advice:"ควรปรุงให้สุกและบริโภคโดยเร็ว" },
   SPOILED: { th:"ไม่สด",       en:"SPOILED", icon:"✕", color:"var(--spoil)", advice:"ไม่ควรบริโภค" },
   UNSURE:  { th:"ไม่แน่ใจ",     en:"UNSURE",  icon:"?", color:"var(--unsure)", advice:"กรุณาจัดฉลากให้อยู่ในกรอบ หลบแสงสะท้อน แล้วสแกนใหม่" },
-  NONE:    { th:"ยังไม่มีแบบจำลอง", en:"COLOR ONLY", icon:"◎", color:"var(--brand-2)", advice:"แสดงเฉพาะค่าสีของฉลาก เชื่อมแบบจำลองได้ที่แท็บตั้งค่า" }
+  NONE:    { th:"ยังไม่มีแบบจำลอง", en:"COLOR ONLY", icon:"◎", color:"var(--brand-2)", advice:"แสดงเฉพาะค่าสีของฉลาก ผู้พัฒนาเชื่อมแบบจำลองได้ที่หน้าผู้พัฒนา" }
 };
+const RULE = { B_FRESH_MIN:215, B_FRESH_MAX:300, B_SPLIT:185, C_PINK_SAT:15, MIN_SAT:3 };
+LEVELS.NOTFRESH = { th:"ไม่ใช่ปลาสด", en:"NOT FRESH", icon:"!", color:"var(--warn)", advice:"สแกนฉลาก C ต่อ เพื่อแยกระดับ" };
 const ALIASES = { FRESH:["fresh","สด"], WARNING:["warning","warn","เริ่มเสื่อม","เริ่มเสีย"], SPOILED:["spoiled","spoil","ไม่สด","เสีย"] };
 
 /* ================== storage (ปลอดภัย) ================== */
@@ -338,11 +377,17 @@ const store = {
 let model = null, stream = null;
 let modelUrl = store.get("ft_model_url", DEFAULT_MODEL_URL) || DEFAULT_MODEL_URL;
 let threshold = store.get("ft_threshold", DEFAULT_THRESHOLD);
+let decideMode = store.get("ft_mode", "combo");
+let step = "B", lastB = null, lastCanvas = null;
 
 /* ================== navigation ================== */
 function go(id){
+  if (id === "settings" && !devUnlocked){ id = "devlock"; }
+  if (id !== "scan" && id !== "result" && step === "C") resetStep();
   document.querySelectorAll(".screen").forEach(s => s.classList.toggle("active", s.id === id));
-  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("active", b.dataset.go === id));
+  const navId = id === "devlock" ? "settings" : id;
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("active", b.dataset.go === navId));
+  if (id === "devlock"){ const p = document.getElementById("pinIn"); p.value = ""; document.getElementById("pinMsg").textContent = ""; }
   if (id === "scan") startCamera(); else stopCamera();
   if (id === "history") renderHistory();
   if (id === "settings") fillSettings();
@@ -459,33 +504,94 @@ function fromFile(ev){
 }
 function alertMsg(t){ const m = document.getElementById("camMsg"); m.classList.remove("hidden"); m.textContent = t; }
 
+function resetStep(){ step = "B"; lastB = null; document.getElementById("camHint").textContent = "สแกนฉลาก B (กะหล่ำปลีม่วง) ให้ทั้งใบอยู่ในกรอบ"; }
+function newScan(){ resetStep(); go("scan"); }
+function colorB(col){
+  if (col.s < RULE.MIN_SAT) return "UNSURE";
+  if (col.h >= RULE.B_FRESH_MIN && col.h <= RULE.B_FRESH_MAX) return "FRESH";
+  if (col.h < RULE.B_FRESH_MIN && col.h >= 90) return "NOTFRESH";
+  return "UNSURE";
+}
+function cIsPink(col){ return (col.h >= 290 || col.h <= 20) && col.s >= RULE.C_PINK_SAT; }
+
+async function runAI(canvas){
+  if (!model) return { probs: [], level: "NONE" };
+  try{
+    const pred = await model.predict(canvas);
+    const probs = pred.map(p => ({ key: mapClass(p.className), name: p.className, p: p.probability })).sort((a,b) => b.p - a.p);
+    const top = probs[0];
+    let level = (top.p * 100 < threshold) ? "UNSURE" : (top.key || "UNSURE");
+    if (!top.key && top.p * 100 >= threshold) level = "CUSTOM:" + top.name;
+    return { probs, level };
+  }catch(e){ console.error(e); return { probs: [], level: "NONE" }; }
+}
+
 async function analyze(canvas){
   const btn = document.getElementById("btnShoot"); btn.disabled = true; btn.textContent = "…";
   const col = colorStats(canvas);
-  let level = "NONE", probs = [];
-  if (model){
-    try{
-      const pred = await model.predict(canvas);
-      probs = pred.map(p => ({ key: mapClass(p.className), name: p.className, p: p.probability }))
-                  .sort((a,b) => b.p - a.p);
-      const top = probs[0];
-      level = (top.p * 100 < threshold) ? "UNSURE" : (top.key || "UNSURE");
-      if (!top.key && top.p * 100 >= threshold) level = "CUSTOM:" + top.name;
-    }catch(e){ console.error(e); level = "NONE"; }
+  lastCanvas = canvas;
+  if (step === "C" && lastB){
+    const final = cIsPink(col) ? "WARNING" : "SPOILED";
+    const info = { how:"BC", b:lastB.col, c:col, ai:lastB.ai };
+    showResult(final, lastB.ai.probs, col, canvas, info);
+    saveHistory(final, lastB.ai.probs, lastB.col, lastB.canvas);
+    resetStep();
+  } else {
+    const ai = await runAI(canvas);
+    if (decideMode === "ai"){
+      showResult(ai.level, ai.probs, col, canvas, { how:"AI", ai });
+      saveHistory(ai.level, ai.probs, col, canvas);
+    } else {
+      const cb = colorB(col);
+      if (cb === "NOTFRESH"){
+        lastB = { col, ai, canvas };
+        showResult("NOTFRESH", ai.probs, col, canvas, { how:"B", b:col, ai });
+      } else {
+        showResult(cb, ai.probs, col, canvas, { how:"B", b:col, ai });
+        saveHistory(cb, ai.probs, col, canvas);
+      }
+    }
   }
-  showResult(level, probs, col, canvas);
-  saveHistory(level, probs, col, canvas);
   btn.disabled = false; btn.textContent = "ตรวจ";
   go("result");
+}
+function startC(){ step = "C"; document.getElementById("camHint").textContent = "ขั้นที่ 2: สแกนฉลาก C (กระเจี๊ยบแดง) ให้ทั้งใบอยู่ในกรอบ"; go("scan"); }
+function skipC(){
+  if (!lastB) return;
+  const final = lastB.col.h >= RULE.B_SPLIT ? "WARNING" : "SPOILED";
+  showResult(final, lastB.ai.probs, lastB.col, lastB.canvas, { how:"Bonly", b:lastB.col, ai:lastB.ai });
+  saveHistory(final, lastB.ai.probs, lastB.col, lastB.canvas);
+  resetStep();
+}
+function dlCrop(){
+  if (!lastCanvas) return;
+  const a = document.createElement("a"); a.href = lastCanvas.toDataURL("image/png");
+  a.download = "freshtag_" + new Date().toISOString().replace(/[:.]/g,"-") + ".png"; a.click();
 }
 
 /* ================== result ================== */
 function levelInfo(level){
-  if (level.startsWith("CUSTOM:")) return { th: level.slice(7), en:"", icon:"•", advice:"ชื่อคลาสนี้ไม่ตรงกับที่แอปรู้จัก ดูได้ที่แท็บตั้งค่า", cls:"NONE" };
+  if (level.startsWith("CUSTOM:")) return { th: level.slice(7), en:"", icon:"•", advice:"ชื่อคลาสนี้ไม่ตรงกับที่แอปรู้จัก ดูได้ที่หน้าผู้พัฒนา", cls:"NONE" };
   return Object.assign({ cls: level }, LEVELS[level]);
 }
-function showResult(level, probs, col, canvas){
+function showResult(level, probs, col, canvas, info){
   const L = levelInfo(level);
+  info = info || {};
+  document.getElementById("stepCard").classList.toggle("hidden", level !== "NOTFRESH");
+  document.getElementById("dlBtn").classList.toggle("hidden", !devUnlocked);
+  const ck = document.getElementById("checkCard"), body = document.getElementById("checkBody");
+  if (info.how && info.how !== "AI"){
+    const aiL = info.ai ? levelInfo(info.ai.level) : null;
+    const aiTxt = (!info.ai || info.ai.level === "NONE") ? "ยังไม่มีแบบจำลอง" : esc(aiL.th) + (info.ai.probs[0] ? " (" + (info.ai.probs[0].p*100).toFixed(0) + "%)" : "");
+    let colorTxt = "ฉลาก B Hue " + info.b.h + "°";
+    if (info.how === "BC") colorTxt += " · ฉลาก C Hue " + info.c.h + "° (" + (cIsPink(info.c) ? "ยังชมพู" : "ไม่ชมพูแล้ว") + ")";
+    let agree = "";
+    if (level !== "NOTFRESH" && info.ai && info.ai.level !== "NONE"){
+      agree = info.ai.level === level ? '<p class="note" style="color:var(--fresh)">✓ ผลจากค่าสีและ AI ตรงกัน</p>' : '<p class="note" style="color:#b97c00">ผลจากค่าสีและ AI ไม่ตรงกัน แอปใช้ผลจากค่าสีซึ่งตรวจสอบกับผลการทดลองแล้ว ควรสแกนซ้ำเพื่อยืนยัน</p>';
+    }
+    body.innerHTML = `<div class="colorinfo"><b>ค่าสี:</b> ${colorTxt}<br><b>AI:</b> ${aiTxt}</div>${agree}`;
+    ck.classList.remove("hidden");
+  } else ck.classList.add("hidden");
   const v = document.getElementById("verdict"); v.className = "verdict v-" + L.cls;
   document.getElementById("vIcon").textContent = L.icon;
   document.getElementById("vLabel").textContent = L.th;
@@ -550,14 +656,33 @@ function exportCSV(){
 function fillSettings(){
   document.getElementById("urlIn").value = modelUrl || "";
   document.getElementById("thrIn").value = threshold;
+  document.getElementById("modeIn").value = decideMode;
 }
 async function saveSettings(){
   modelUrl = normUrl(document.getElementById("urlIn").value);
   const t = parseFloat(document.getElementById("thrIn").value);
   threshold = isNaN(t) ? DEFAULT_THRESHOLD : Math.min(100, Math.max(0, t));
-  store.set("ft_model_url", modelUrl); store.set("ft_threshold", threshold);
+  decideMode = document.getElementById("modeIn").value;
+  store.set("ft_model_url", modelUrl); store.set("ft_threshold", threshold); store.set("ft_mode", decideMode);
   await loadModel();
 }
+
+/* ================== developer lock ================== */
+// รหัสเก็บเป็นค่าแฮช SHA-256 (ป้องกันคนทั่วไปเข้าหน้าตั้งค่า ไม่ใช่ระบบความปลอดภัยระดับสูง)
+const DEV_PIN_HASH = "15e2b0d3c33891ebb0f1ef609ec419420c20e320ce94c65fbc8c3312448eb225";
+let devUnlocked = false;
+async function sha256hex(t){
+  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
+  return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2,"0")).join("");
+}
+async function unlockDev(){
+  const v = document.getElementById("pinIn").value.trim();
+  let ok = false;
+  try{ ok = (await sha256hex(v)) === DEV_PIN_HASH; }catch(e){ ok = false; }
+  if (ok){ devUnlocked = true; go("settings"); }
+  else { document.getElementById("pinMsg").textContent = "รหัสผ่านไม่ถูกต้อง"; }
+}
+function lockDev(){ devUnlocked = false; go("home"); }
 
 /* ================== credits ================== */
 function renderCredits(){
