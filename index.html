@@ -310,13 +310,6 @@
     <div class="card cr-sec"><h3>คณะผู้จัดทำ</h3><div id="crTeam"></div></div>
     <div class="card cr-sec"><h3>ครูที่ปรึกษา</h3><div id="crAdvisors"></div></div>
     <div class="card cr-sec"><h3>สถานศึกษา</h3><p id="crSchool" style="font-weight:600"></p><p class="muted" id="crContest"></p></div>
-    <div class="card cr-sec"><h3>สารสกัดธรรมชาติในฉลาก</h3>
-      <div class="chips">
-        <span class="chip"><i style="background:#3f5fc4"></i>A ดอกอัญชัน</span>
-        <span class="chip"><i style="background:#8a6cc8"></i>B กะหล่ำปลีม่วง</span>
-        <span class="chip"><i style="background:#d9568e"></i>C กระเจี๊ยบแดง</span>
-      </div>
-    </div>
     <div class="card cr-sec"><h3>เทคโนโลยีที่ใช้</h3>
       <div class="chips">
         <span class="chip">Teachable Machine (Google)</span>
@@ -349,9 +342,9 @@ const MAX_HISTORY = 50;
 const CREDITS = {
   titleTh: "การพัฒนาฉลากอัจฉริยะจากสารสกัดธรรมชาติร่วมกับปัญญาประดิษฐ์เพื่อประเมินความสดของปลา",
   titleEn: "Development of a Smart Label from Natural Extracts with Artificial Intelligence for Fish Freshness Assessment",
-  team:     ["ชื่อ-สกุล นักเรียนคนที่ 1", "ชื่อ-สกุล นักเรียนคนที่ 2", "ชื่อ-สกุล นักเรียนคนที่ 3"],
-  advisors: ["ชื่อ-สกุล ครูที่ปรึกษาคนที่ 1", "ชื่อ-สกุล ครูที่ปรึกษาคนที่ 2"],
-  school:   "ชื่อโรงเรียน",
+  team:     ["นายพลวัตร กาพรหมวงค์", "นายชัยวัฒน์ สรภูมิ", "นางสาวนรมน สำรวย"],
+  advisors: ["นางสาวธิติมา คงกำเหนิด", "นางสาวเบญจมาศ รัตน์พิทักษ์"],
+  school:   "โรงเรียนหัวหินวิทยาคม",
   contest:  "การประกวดโครงงานวิทยาศาสตร์ ประเภทสิ่งประดิษฐ์ งานศิลปหัตถกรรมนักเรียน",
   year:     "2569"
 };
@@ -592,6 +585,8 @@ function showResult(level, probs, col, canvas, info){
     body.innerHTML = `<div class="colorinfo"><b>ค่าสี:</b> ${colorTxt}<br><b>AI:</b> ${aiTxt}</div>${agree}`;
     ck.classList.remove("hidden");
   } else ck.classList.add("hidden");
+  const quiet = (level === "FRESH" && info.how && info.how !== "AI");   // สด: แสดงผลอย่างเดียว ไม่แสดงผลตรวจ 2 ทางและค่าความมั่นใจ AI
+  if (quiet) ck.classList.add("hidden");
   const v = document.getElementById("verdict"); v.className = "verdict v-" + L.cls;
   document.getElementById("vIcon").textContent = L.icon;
   document.getElementById("vLabel").textContent = L.th;
@@ -599,7 +594,7 @@ function showResult(level, probs, col, canvas, info){
   document.getElementById("vAdvice").textContent = L.advice;
 
   const bars = document.getElementById("bars"); bars.innerHTML = "";
-  document.getElementById("barsCard").classList.toggle("hidden", !probs.length);
+  document.getElementById("barsCard").classList.toggle("hidden", !probs.length || quiet);
   const order = ["FRESH","WARNING","SPOILED"];
   probs.slice().sort((a,b) => (order.indexOf(a.key) + 9*(a.key?0:1)) - (order.indexOf(b.key) + 9*(b.key?0:1))).forEach(p => {
     const info = p.key ? LEVELS[p.key] : { th: p.name, color: "var(--unsure)" };
