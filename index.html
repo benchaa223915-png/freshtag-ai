@@ -94,7 +94,7 @@
   .verdict .label{font-size:32px;font-weight:700;margin-top:8px}
   .verdict .en{font-size:13px;opacity:.9;letter-spacing:2px}
   .verdict .advice{margin-top:12px;font-size:16px;background:rgba(255,255,255,.18);border-radius:12px;padding:9px 12px}
-  .v-FRESH{background:linear-gradient(135deg,#0f8f5c,#2cc17f)} .v-WARNING{background:linear-gradient(135deg,#d48806,#f2b632)} .v-SPOILED{background:linear-gradient(135deg,#c73636,#ef6b5b)} .v-UNSURE{background:linear-gradient(135deg,#5f6b7d,#8a96a8)} .v-NONE{background:linear-gradient(135deg,var(--brand),var(--brand-2))}
+  .v-FRESH{background:linear-gradient(135deg,#0f8f5c,#2cc17f)} .v-WARNING{background:linear-gradient(135deg,#d48806,#f2b632)} .v-SPOILED{background:linear-gradient(135deg,#c73636,#ef6b5b)} .v-CHECK{background:linear-gradient(135deg,#5f6b7d,#8a96a8)} .v-UNSURE{background:linear-gradient(135deg,#5f6b7d,#8a96a8)} .v-NONE{background:linear-gradient(135deg,var(--brand),var(--brand-2))}
   .bars .bar{margin:12px 0}
   .bars .top{display:flex;justify-content:space-between;font-size:15px}
   .bars .track{height:12px;border-radius:8px;background:#edf2f6;overflow:hidden;margin-top:5px}
@@ -109,7 +109,7 @@
   .hist-item:last-child{border-bottom:0}
   .hist-item img{width:54px;height:54px;border-radius:10px;flex:none;border:1px solid var(--line)}
   .pill{display:inline-block;font-size:13px;font-weight:700;color:#fff;border-radius:999px;padding:2px 10px}
-  .p-FRESH{background:var(--fresh)} .p-WARNING{background:var(--warn)} .p-SPOILED{background:var(--spoil)} .p-UNSURE,.p-NONE{background:var(--unsure)}
+  .p-FRESH{background:var(--fresh)} .p-WARNING{background:var(--warn)} .p-SPOILED{background:var(--spoil)} .p-UNSURE,.p-NONE,.p-CHECK{background:var(--unsure)}
   label.f{display:block;font-size:14px;font-weight:700;margin:12px 0 6px}
   input[type=text],input[type=number]{width:100%;font:inherit;padding:12px;border-radius:12px;border:1.5px solid var(--line);background:#fff}
   .note{font-size:13px;color:var(--muted);margin-top:6px}
@@ -349,6 +349,7 @@ const LEVELS = {
   NONE:    { th:"ยังไม่มีแบบจำลอง", en:"COLOR ONLY", icon:"◎", color:"var(--brand-2)", advice:"แสดงเฉพาะค่าสีของฉลาก Admin เชื่อมแบบจำลองได้ที่หน้า Admin" }
 };
 const RULE = { B_FRESH_MIN:215, B_FRESH_MAX:300, B_SPLIT:185, MIN_SAT:3 };
+LEVELS.CHECK = { th:"ไม่แน่ใจ ตรวจซ้ำ", en:"RECHECK", icon:"?", color:"var(--unsure)", advice:"ผลอยู่ระหว่าง 2 ระดับ ควรสแกนซ้ำหรือตรวจด้วยการดมกลิ่น" };
 const ALIASES = { FRESH:["fresh","สด"], WARNING:["warning","warn","เริ่มเสื่อม","เริ่มเสีย"], SPOILED:["spoiled","spoil","ไม่สด","เสีย"] };
 
 /* ================== storage (ปลอดภัย) ================== */
@@ -520,8 +521,10 @@ async function analyze(canvas){
       saveHistory(ai.level, ai.probs, col, canvas);
     } else {
       const cb = colorB3(col);
-      showResult(cb, ai.probs, col, canvas, { how:"B", b:col, ai });
-      saveHistory(cb, ai.probs, col, canvas);
+      const aiKnown = ["FRESH","WARNING","SPOILED"].includes(ai.level);
+      const final = (aiKnown && ["FRESH","WARNING","SPOILED"].includes(cb) && ai.level !== cb) ? "CHECK" : cb;
+      showResult(final, ai.probs, col, canvas, { how:"B", b:col, ai, color:cb });
+      saveHistory(final, ai.probs, col, canvas);
     }
   }
   btn.disabled = false; btn.textContent = "ตรวจ";
@@ -548,7 +551,9 @@ function showResult(level, probs, col, canvas, info){
     const aiTxt = (!info.ai || info.ai.level === "NONE") ? "ยังไม่มีแบบจำลอง" : esc(aiL.th) + (info.ai.probs[0] ? " (" + (info.ai.probs[0].p*100).toFixed(0) + "%)" : "");
     let colorTxt = "Hue " + info.b.h + "° (เกณฑ์: ≥215° สด, 185–214° เริ่มเสื่อม, <185° ไม่สด)";
     let agree = "";
-    if (info.ai && info.ai.level !== "NONE"){
+    if (level === "CHECK"){
+      agree = '<p class="note" style="color:#b97c00">ค่าสีบอกว่า "' + esc(LEVELS[info.color].th) + '" แต่ AI บอกว่า "' + esc(levelInfo(info.ai.level).th) + '"</p>';
+    } else if (info.ai && info.ai.level !== "NONE"){
       agree = info.ai.level === level ? '<p class="note" style="color:var(--fresh)">✓ ผลจากค่าสีและ AI ตรงกัน</p>' : '<p class="note" style="color:#b97c00">ผลจากค่าสีและ AI ไม่ตรงกัน แอปใช้ผลจากค่าสีซึ่งตรวจสอบกับผลการทดลองแล้ว ควรสแกนซ้ำเพื่อยืนยัน</p>';
     }
     body.innerHTML = `<div class="colorinfo"><b>ค่าสีฉลาก:</b> ${colorTxt}<br><b>AI:</b> ${aiTxt}</div>${agree}`;
