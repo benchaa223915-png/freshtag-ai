@@ -268,8 +268,8 @@
       <p class="note">ได้จาก Teachable Machine &gt; Export Model &gt; Tensorflow.js &gt; Upload my model</p>
       <label class="f" for="modeIn">วิธีตัดสินผล</label>
       <select id="modeIn" style="width:100%;font:inherit;padding:12px;border-radius:12px;border:1.5px solid var(--line);background:#fff">
-        <option value="color">ค่าสีฉลากอย่างเดียว (ใช้ตอนนี้)</option>
-        <option value="combo">ค่าสีฉลากร่วมกับ AI (ใช้เมื่อ AI ฝึกใหม่แล้ว)</option>
+        <option value="combo">ค่าสีฉลากร่วมกับ AI (แนะนำ)</option>
+        <option value="color">ค่าสีฉลากอย่างเดียว</option>
         <option value="ai">AI อย่างเดียว</option>
       </select>
       <p class="note">แบบแนะนำใช้เกณฑ์ค่า Hue ของฉลากจากผลการทดลอง: ตั้งแต่ 215° = สด, 185–214° = เริ่มเสื่อม, ต่ำกว่า 185° = ไม่สด และแสดงผลของ AI คู่กันเมื่อผลไม่ใช่สด</p>
@@ -363,7 +363,7 @@ const store = {
 let model = null, stream = null;
 let modelUrl = store.get("ft_model_url", DEFAULT_MODEL_URL) || DEFAULT_MODEL_URL;
 let threshold = store.get("ft_threshold", DEFAULT_THRESHOLD);
-let decideMode = store.get("ft_mode2", "color");
+let decideMode = store.get("ft_mode3", "combo");
 let lastCanvas = null;
 
 /* ================== navigation ================== */
@@ -402,7 +402,8 @@ async function loadModel(){
   setStatus("load", "กำลังโหลดแบบจำลอง…");
   try{
     const u = normUrl(modelUrl);
-    model = await tmImage.load(u + "model.json", u + "metadata.json");
+    const v = "?v=" + Date.now();   // กันมือถือจำโมเดลเก่า
+    model = await tmImage.load(u + "model.json" + v, u + "metadata.json" + v);
     const labels = model.getClassLabels();
     const unknown = labels.filter(l => !mapClass(l));
     setStatus("ok", "แบบจำลองพร้อมใช้งาน (" + labels.length + " คลาส)");
@@ -640,7 +641,7 @@ async function saveSettings(){
   const t = parseFloat(document.getElementById("thrIn").value);
   threshold = isNaN(t) ? DEFAULT_THRESHOLD : Math.min(100, Math.max(0, t));
   decideMode = document.getElementById("modeIn").value;
-  store.set("ft_model_url", modelUrl); store.set("ft_threshold", threshold); store.set("ft_mode2", decideMode);
+  store.set("ft_model_url", modelUrl); store.set("ft_threshold", threshold); store.set("ft_mode3", decideMode);
   await loadModel();
 }
 
