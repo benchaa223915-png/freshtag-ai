@@ -276,10 +276,10 @@
       <p class="note">ได้จาก Teachable Machine &gt; Export Model &gt; Tensorflow.js &gt; Upload my model</p>
       <label class="f" for="modeIn">วิธีตัดสินผล</label>
       <select id="modeIn" style="width:100%;font:inherit;padding:12px;border-radius:12px;border:1.5px solid var(--line);background:#fff">
-        <option value="combo">ค่าสีฉลาก B + C ร่วมกับ AI (แนะนำ)</option>
+        <option value="combo">ค่าสีฉลาก B ร่วมกับ AI (แนะนำ)</option>
         <option value="ai">AI อย่างเดียว</option>
       </select>
-      <p class="note">แบบแนะนำใช้เกณฑ์ค่า Hue จากผลการทดลอง: ฉลาก B ตั้งแต่ 215° = สด ถ้าต่ำกว่าให้สแกนฉลาก C ต่อ C ยังเป็นชมพู = เริ่มเสื่อม ไม่ชมพูแล้ว = ไม่สด และแสดงผลของ AI คู่กัน</p>
+      <p class="note">แบบแนะนำใช้เกณฑ์ค่า Hue ของฉลาก B จากผลการทดลอง: ตั้งแต่ 215° = สด, 185–214° = เริ่มเสื่อม, ต่ำกว่า 185° = ไม่สด และแสดงผลของ AI คู่กันเมื่อผลไม่ใช่สด</p>
       <label class="f" for="thrIn">เกณฑ์ "ไม่แน่ใจ" ของ AI (%)</label>
       <input type="number" id="thrIn" min="0" max="100" step="5">
       <p class="note">ถ้าค่าความมั่นใจสูงสุดต่ำกว่าค่านี้ แอปจะขอให้สแกนใหม่แทนการเดา</p>
@@ -505,6 +505,14 @@ function colorB(col){
   if (col.h < RULE.B_FRESH_MIN && col.h >= 90) return "NOTFRESH";
   return "UNSURE";
 }
+// เกณฑ์ฉลาก B (กะหล่ำปลีม่วง) จากผลการทดลอง: ≥215° สด, 185–214° เริ่มเสื่อม, <185° ไม่สด
+function colorB3(col){
+  if (col.s < RULE.MIN_SAT) return "UNSURE";
+  if (col.h >= RULE.B_FRESH_MIN && col.h <= RULE.B_FRESH_MAX) return "FRESH";
+  if (col.h >= RULE.B_SPLIT && col.h < RULE.B_FRESH_MIN) return "WARNING";
+  if (col.h >= 60 && col.h < RULE.B_SPLIT) return "SPOILED";
+  return "UNSURE";
+}
 function cIsPink(col){ return (col.h >= 290 || col.h <= 20) && col.s >= RULE.C_PINK_SAT; }
 
 async function runAI(canvas){
@@ -535,14 +543,9 @@ async function analyze(canvas){
       showResult(ai.level, ai.probs, col, canvas, { how:"AI", ai });
       saveHistory(ai.level, ai.probs, col, canvas);
     } else {
-      const cb = colorB(col);
-      if (cb === "NOTFRESH"){
-        lastB = { col, ai, canvas };
-        showResult("NOTFRESH", ai.probs, col, canvas, { how:"B", b:col, ai });
-      } else {
-        showResult(cb, ai.probs, col, canvas, { how:"B", b:col, ai });
-        saveHistory(cb, ai.probs, col, canvas);
-      }
+      const cb = colorB3(col);
+      showResult(cb, ai.probs, col, canvas, { how:"B", b:col, ai });
+      saveHistory(cb, ai.probs, col, canvas);
     }
   }
   btn.disabled = false; btn.textContent = "ตรวจ";
