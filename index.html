@@ -268,11 +268,11 @@
       <p class="note">ได้จาก Teachable Machine &gt; Export Model &gt; Tensorflow.js &gt; Upload my model</p>
       <label class="f" for="modeIn">วิธีตัดสินผล</label>
       <select id="modeIn" style="width:100%;font:inherit;padding:12px;border-radius:12px;border:1.5px solid var(--line);background:#fff">
-        <option value="combo">AI ร่วมกับค่าสีฉลาก (แนะนำ)</option>
+        <option value="ai">AI อย่างเดียว (แนะนำ)</option>
+        <option value="combo">AI ร่วมกับค่าสีฉลาก</option>
         <option value="color">ค่าสีฉลากอย่างเดียว</option>
-        <option value="ai">AI อย่างเดียว</option>
       </select>
-      <p class="note">แบบแนะนำ: ถ้า AI บอกว่าสด แสดงผลสดอย่างเดียว ถ้า AI บอกเริ่มเสื่อมหรือไม่สด แสดง 2 คำตอบ คือผลจาก AI และผลจากการอ่านค่า Hue (ตั้งแต่ 215° = สด, 185–214° = เริ่มเสื่อม, ต่ำกว่า 185° = ไม่สด)</p>
+      <p class="note">แบบแนะนำใช้ผลจาก AI (Teachable Machine) อย่างเดียว แจ้งผลเมื่อความมั่นใจถึงเกณฑ์ (ค่าเริ่มต้น 60%) ถ้าไม่ถึงจะขึ้นว่า "ไม่แน่ใจ" พร้อมบอกว่าอาจเป็นระดับใด</p>
       <label class="f" for="thrIn">เกณฑ์ "ไม่แน่ใจ" ของ AI (%)</label>
       <input type="number" id="thrIn" min="0" max="100" step="5">
       <p class="note">ถ้าค่าความมั่นใจสูงสุดต่ำกว่าค่านี้ แอปจะขอให้สแกนใหม่แทนการเดา</p>
@@ -347,7 +347,7 @@ const LEVELS = {
   WARNING: { th:"เริ่มเสื่อม",  en:"WARNING", icon:"!", color:"var(--warn)",  advice:"ควรปรุงให้สุกและบริโภคโดยเร็ว" },
   SPOILED: { th:"ไม่สด",       en:"SPOILED", icon:"✕", color:"var(--spoil)", advice:"ไม่ควรบริโภค" },
   UNSURE:  { th:"ไม่แน่ใจ",     en:"UNSURE",  icon:"?", color:"var(--unsure)", advice:"กรุณาจัดฉลากให้อยู่ในกรอบ หลบแสงสะท้อน แล้วสแกนใหม่" },
-  NONE:    { th:"ยังไม่มีแบบจำลอง", en:"COLOR ONLY", icon:"◎", color:"var(--brand-2)", advice:"แสดงเฉพาะค่าสีของฉลาก Admin เชื่อมแบบจำลองได้ที่หน้า Admin" }
+  NONE:    { th:"ยังไม่มีแบบจำลอง", en:"NO MODEL", icon:"◎", color:"var(--brand-2)", advice:"โหลดแบบจำลอง AI ไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วสแกนใหม่" }
 };
 const RULE = { B_FRESH_MIN:215, B_FRESH_MAX:300, B_SPLIT:185, MIN_SAT:3 };
 LEVELS.CHECK = { th:"ไม่แน่ใจ ตรวจซ้ำ", en:"RECHECK", icon:"?", color:"var(--unsure)", advice:"ผลอยู่ระหว่าง 2 ระดับ ควรสแกนซ้ำหรือตรวจด้วยการดมกลิ่น" };
@@ -364,8 +364,10 @@ let model = null, stream = null;
 // เปลี่ยนเป็นแบบจำลองใหม่: เครื่องที่เคยบันทึกลิงก์เดิมไว้จะถูกเปลี่ยนเป็นลิงก์ใหม่อัตโนมัติ 1 ครั้ง
 if (store.get("ft_model_ver", "") !== DEFAULT_MODEL_URL){ store.set("ft_model_url", DEFAULT_MODEL_URL); store.set("ft_model_ver", DEFAULT_MODEL_URL); }
 let modelUrl = store.get("ft_model_url", DEFAULT_MODEL_URL) || DEFAULT_MODEL_URL;
+// ใช้ AI (Teachable Machine) อย่างเดียว เกณฑ์ความมั่นใจ 60% (บังคับใช้ 1 ครั้งกับทุกเครื่อง)
+if (store.get("ft_cfg_ver", 0) < 6){ store.set("ft_mode3", "ai"); store.set("ft_threshold", 60); store.set("ft_cfg_ver", 6); }
 let threshold = store.get("ft_threshold", DEFAULT_THRESHOLD);
-let decideMode = store.get("ft_mode3", "combo");
+let decideMode = store.get("ft_mode3", "ai");
 let lastCanvas = null;
 
 /* ================== navigation ================== */
@@ -594,9 +596,17 @@ function showResult(level, probs, col, canvas, info){
   } else ck.classList.add("hidden");
   const v = document.getElementById("verdict"); v.className = "verdict v-" + L.cls;
   document.getElementById("vIcon").textContent = L.icon;
-  document.getElementById("vLabel").textContent = L.th;
+  let vTh = L.th, vAdv = L.advice;
+  if (level === "FRESH" || level === "WARNING" || level === "SPOILED"){
+    if (info.how === "AI" && probs[0]) vAdv = L.advice + " (ความมั่นใจของ AI " + (probs[0].p*100).toFixed(0) + "%)";
+  } else if (level === "UNSURE" && info.how === "AI" && probs[0]){
+    const t = probs[0], tName = t.key ? LEVELS[t.key].th : t.name;
+    vTh = "ไม่แน่ใจ";
+    vAdv = "อาจเป็น \"" + tName + "\" (ความมั่นใจ " + (t.p*100).toFixed(0) + "% ต่ำกว่าเกณฑ์ " + threshold + "%) ควรจัดฉลากให้อยู่ในกรอบ หลบแสงสะท้อน แล้วสแกนใหม่ หรือตรวจด้วยการดมกลิ่น";
+  }
+  document.getElementById("vLabel").textContent = vTh;
   document.getElementById("vEn").textContent = L.en;
-  document.getElementById("vAdvice").textContent = L.advice;
+  document.getElementById("vAdvice").textContent = vAdv;
 
   const bars = document.getElementById("bars"); bars.innerHTML = "";
   document.getElementById("barsCard").classList.toggle("hidden", !probs.length || quiet);
