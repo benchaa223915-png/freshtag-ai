@@ -268,11 +268,11 @@
       <p class="note">ได้จาก Teachable Machine &gt; Export Model &gt; Tensorflow.js &gt; Upload my model</p>
       <label class="f" for="modeIn">วิธีตัดสินผล</label>
       <select id="modeIn" style="width:100%;font:inherit;padding:12px;border-radius:12px;border:1.5px solid var(--line);background:#fff">
-        <option value="ai">AI ตัดสิน + ค่าสีคอยค้าน (แนะนำ)</option>
-        <option value="combo">AI ร่วมกับค่าสีฉลาก</option>
+        <option value="combo">ค่าสีฉลากร่วมกับ AI (แนะนำ)</option>
         <option value="color">ค่าสีฉลากอย่างเดียว</option>
+        <option value="ai">AI อย่างเดียว</option>
       </select>
-      <p class="note">แบบแนะนำใช้ผลจาก AI (Teachable Machine) แจ้งผลเมื่อความมั่นใจถึงเกณฑ์ (ค่าเริ่มต้น 60%) ถ้าไม่ถึงจะขึ้นว่า "ไม่แน่ใจ" พร้อมบอกว่าอาจเป็นระดับใด และถ้า AI บอกว่าสดแต่ค่า Hue ต่ำกว่า 215° แอปจะแสดง 2 คำตอบให้ตรวจซ้ำ</p>
+      <p class="note">แบบแนะนำใช้เกณฑ์ค่า Hue ของฉลากจากผลการทดลอง: ตั้งแต่ 215° = สด, 185–214° = เริ่มเสื่อม, ต่ำกว่า 185° = ไม่สด และแสดงผลของ AI คู่กันเมื่อผลไม่ใช่สด</p>
       <label class="f" for="thrIn">เกณฑ์ "ไม่แน่ใจ" ของ AI (%)</label>
       <input type="number" id="thrIn" min="0" max="100" step="5">
       <p class="note">ถ้าค่าความมั่นใจสูงสุดต่ำกว่าค่านี้ แอปจะขอให้สแกนใหม่แทนการเดา</p>
@@ -347,7 +347,7 @@ const LEVELS = {
   WARNING: { th:"เริ่มเสื่อม",  en:"WARNING", icon:"!", color:"var(--warn)",  advice:"ควรปรุงให้สุกและบริโภคโดยเร็ว" },
   SPOILED: { th:"ไม่สด",       en:"SPOILED", icon:"✕", color:"var(--spoil)", advice:"ไม่ควรบริโภค" },
   UNSURE:  { th:"ไม่แน่ใจ",     en:"UNSURE",  icon:"?", color:"var(--unsure)", advice:"กรุณาจัดฉลากให้อยู่ในกรอบ หลบแสงสะท้อน แล้วสแกนใหม่" },
-  NONE:    { th:"ยังไม่มีแบบจำลอง", en:"NO MODEL", icon:"◎", color:"var(--brand-2)", advice:"โหลดแบบจำลอง AI ไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วสแกนใหม่" }
+  NONE:    { th:"ยังไม่มีแบบจำลอง", en:"COLOR ONLY", icon:"◎", color:"var(--brand-2)", advice:"แสดงเฉพาะค่าสีของฉลาก Admin เชื่อมแบบจำลองได้ที่หน้า Admin" }
 };
 const RULE = { B_FRESH_MIN:215, B_FRESH_MAX:300, B_SPLIT:185, MIN_SAT:3 };
 LEVELS.NOLABEL = { th:"ไม่พบฉลาก", en:"NO LABEL", icon:"⌀", color:"var(--unsure)", advice:"ภาพมืดเกินไปหรือไม่ใช่ฉลาก FreshTag กรุณาจัดฉลากให้อยู่ในกรอบในที่มีแสงพอ แล้วสแกนใหม่" };
@@ -362,13 +362,12 @@ const store = {
 
 /* ================== state ================== */
 let model = null, stream = null;
-// เปลี่ยนเป็นแบบจำลองใหม่: เครื่องที่เคยบันทึกลิงก์เดิมไว้จะถูกเปลี่ยนเป็นลิงก์ใหม่อัตโนมัติ 1 ครั้ง
 if (store.get("ft_model_ver", "") !== DEFAULT_MODEL_URL){ store.set("ft_model_url", DEFAULT_MODEL_URL); store.set("ft_model_ver", DEFAULT_MODEL_URL); }
 let modelUrl = store.get("ft_model_url", DEFAULT_MODEL_URL) || DEFAULT_MODEL_URL;
-// ใช้ AI (Teachable Machine) อย่างเดียว เกณฑ์ความมั่นใจ 60% (บังคับใช้ 1 ครั้งกับทุกเครื่อง)
-if (store.get("ft_cfg_ver", 0) < 6){ store.set("ft_mode3", "ai"); store.set("ft_threshold", 60); store.set("ft_cfg_ver", 6); }
+// กลับไปใช้ค่าสีตัดสินหลัก + AI ยืนยัน (บังคับใช้ 1 ครั้งกับทุกเครื่อง)
+if (store.get("ft_cfg_ver", 0) < 8){ store.set("ft_mode3", "combo"); store.set("ft_threshold", 60); store.set("ft_cfg_ver", 8); }
 let threshold = store.get("ft_threshold", DEFAULT_THRESHOLD);
-let decideMode = store.get("ft_mode3", "ai");
+let decideMode = store.get("ft_mode3", "combo");
 let lastCanvas = null;
 
 /* ================== navigation ================== */
@@ -539,16 +538,13 @@ async function analyze(canvas){
   }
   {
     const ai = await runAI(canvas);
+    if (ai.level === "NOLABEL"){
+      showResult("NOLABEL", ai.probs, col, canvas, { how:"AI", ai });
+      btn.disabled = false; btn.textContent = "ตรวจ"; go("result"); return;
+    }
     if (decideMode === "ai"){
-      // AI ตัดสิน แต่ถ้า AI บอก "สด" ขณะที่ Hue ต่ำกว่า 215° (สีบอกว่าเริ่มเสื่อม/ไม่สด) จะไม่แจ้งว่าสด
-      const cbA = colorB3(col);
-      if (ai.level === "FRESH" && (cbA === "WARNING" || cbA === "SPOILED")){
-        showResult("CHECK", ai.probs, col, canvas, { how:"VETO", ai, b:col, color:cbA });
-        saveHistory("CHECK", ai.probs, col, canvas);
-      } else {
-        showResult(ai.level, ai.probs, col, canvas, { how:"AI", ai });
-        saveHistory(ai.level, ai.probs, col, canvas);
-      }
+      showResult(ai.level, ai.probs, col, canvas, { how:"AI", ai });
+      saveHistory(ai.level, ai.probs, col, canvas);
     } else {
       const cb = colorB3(col);
       if (decideMode === "color"){
@@ -556,16 +552,9 @@ async function analyze(canvas){
         saveHistory(cb, [], col, canvas);
         btn.disabled = false; btn.textContent = "ตรวจ"; go("result"); return;
       }
-      // ขั้นที่ 1: AI (Teachable Machine) ตัดสินก่อน
-      //   AI = สด  -> แสดง "สด" อย่างเดียว
-      //   AI = เริ่มเสื่อม/ไม่สด -> แสดง 2 คำตอบ: (1) AI (2) การอ่านค่าสี Hue
-      //   AI ไม่แน่ใจ/ยังไม่มีแบบจำลอง -> ใช้ผลการอ่านค่าสี
-      const aiBad = ["WARNING","SPOILED"].includes(ai.level);
-      let final;
-      if (ai.level === "FRESH") final = "FRESH";
-      else if (aiBad) final = ai.level;
-      else final = cb;
-      showResult(final, ai.probs, col, canvas, { how:"B", b:col, ai, color:cb, two: aiBad });
+      const aiKnown = ["FRESH","WARNING","SPOILED"].includes(ai.level);
+      const final = (aiKnown && ["FRESH","WARNING","SPOILED"].includes(cb) && ai.level !== cb) ? "CHECK" : cb;
+      showResult(final, ai.probs, col, canvas, { how:"B", b:col, ai, color:cb });
       saveHistory(final, ai.probs, col, canvas);
     }
   }
@@ -588,58 +577,28 @@ function showResult(level, probs, col, canvas, info){
   info = info || {};
   document.getElementById("dlBtn").classList.toggle("hidden", !devUnlocked);
   const ck = document.getElementById("checkCard"), body = document.getElementById("checkBody");
-  const RULE_TXT = "เกณฑ์: ตั้งแต่ 215° = สด, 185–214° = เริ่มเสื่อม, ต่ำกว่า 185° = ไม่สด";
-  const colTh = c => (["FRESH","WARNING","SPOILED"].includes(c) ? LEVELS[c].th : "อ่านค่าสีไม่ได้");
-  let quiet = false;
-  if (info.how === "COLOR"){
-    ck.querySelector("h2").textContent = "ค่าสีของฉลาก";
-    body.innerHTML = `<div class="colorinfo"><b>Hue ${info.b.h}°</b> → <b>${esc(colTh(level))}</b><br><span class="muted">${RULE_TXT}</span></div>`;
-    ck.classList.remove("hidden");
-  } else if (info.how === "B"){
-    if (level === "FRESH" && info.ai && info.ai.level === "FRESH"){
-      quiet = true;                                  // AI บอกสด: แสดงผลสดอย่างเดียว
-      ck.classList.add("hidden");
-    } else if (info.two){
-      const aiL = levelInfo(info.ai.level);
-      const pct = info.ai.probs[0] ? " (ความมั่นใจ " + (info.ai.probs[0].p*100).toFixed(0) + "%)" : "";
-      const same = info.ai.level === info.color;
-      ck.querySelector("h2").textContent = "ผลตรวจ 2 คำตอบ";
-      body.innerHTML = `<div class="colorinfo">
-        <b>1. ผลจาก AI (Teachable Machine):</b> ${esc(aiL.th)}${pct}<br>
-        <b>2. ผลจากการอ่านค่าสี:</b> Hue ${info.b.h}° → ${esc(colTh(info.color))}<br>
-        <span class="muted">${RULE_TXT}</span></div>` +
-        (same ? '<p class="note" style="color:var(--fresh)">✓ ทั้ง 2 คำตอบตรงกัน</p>'
-              : '<p class="note" style="color:#b97c00">คำตอบทั้ง 2 ทางไม่ตรงกัน ควรสแกนซ้ำหรือตรวจด้วยการดมกลิ่น</p>');
-      ck.classList.remove("hidden");
-    } else {
-      const why = (!info.ai || info.ai.level === "NONE") ? "ยังไม่ได้เชื่อมแบบจำลอง AI" : "AI ไม่แน่ใจ";
-      ck.querySelector("h2").textContent = "ผลจากการอ่านค่าสี";
-      body.innerHTML = `<div class="colorinfo">${why} จึงใช้ผลจากการอ่านค่าสี<br><b>Hue ${info.b.h}°</b> → <b>${esc(colTh(info.color))}</b><br><span class="muted">${RULE_TXT}</span></div>`;
-      ck.classList.remove("hidden");
+  if (info.how && info.how !== "AI"){
+    const aiL = info.ai ? levelInfo(info.ai.level) : null;
+    const aiTxt = (!info.ai || info.ai.level === "NONE") ? "ยังไม่มีแบบจำลอง" : esc(aiL.th) + (info.ai.probs[0] ? " (" + (info.ai.probs[0].p*100).toFixed(0) + "%)" : "");
+    let colorTxt = "Hue " + info.b.h + "° (เกณฑ์: ≥215° สด, 185–214° เริ่มเสื่อม, <185° ไม่สด)";
+    let agree = "";
+    if (level === "CHECK"){
+      agree = '<p class="note" style="color:#b97c00">ค่าสีบอกว่า "' + esc(LEVELS[info.color].th) + '" แต่ AI บอกว่า "' + esc(levelInfo(info.ai.level).th) + '"</p>';
+    } else if (info.ai && info.ai.level !== "NONE"){
+      agree = info.ai.level === level ? '<p class="note" style="color:var(--fresh)">✓ ผลจากค่าสีและ AI ตรงกัน</p>' : '<p class="note" style="color:#b97c00">ผลจากค่าสีและ AI ไม่ตรงกัน แอปใช้ผลจากค่าสีซึ่งตรวจสอบกับผลการทดลองแล้ว ควรสแกนซ้ำเพื่อยืนยัน</p>';
     }
-  } else if (info.how === "VETO"){
-    const pct = info.ai.probs[0] ? " (ความมั่นใจ " + (info.ai.probs[0].p*100).toFixed(0) + "%)" : "";
-    ck.querySelector("h2").textContent = "ผลตรวจ 2 คำตอบ";
-    body.innerHTML = `<div class="colorinfo">
-      <b>1. ผลจาก AI (Teachable Machine):</b> สด${pct}<br>
-      <b>2. ผลจากการอ่านค่าสี:</b> Hue ${info.b.h}° → ${esc(colTh(info.color))}<br>
-      <span class="muted">${RULE_TXT}</span></div>
-      <p class="note" style="color:#b97c00">AI บอกว่าสด แต่สีของฉลากเปลี่ยนแล้ว แอปจึงยังไม่ยืนยันว่าสด ควรสแกนซ้ำหรือตรวจด้วยการดมกลิ่น</p>`;
+    const aiLine = info.how === "COLOR" ? "" : `<br><b>AI:</b> ${aiTxt}`;
+    ck.querySelector("h2").textContent = info.how === "COLOR" ? "ค่าสีของฉลาก" : "ผลตรวจ 2 ทาง";
+    body.innerHTML = `<div class="colorinfo"><b>ค่าสีฉลาก:</b> ${colorTxt}${aiLine}</div>${agree}`;
     ck.classList.remove("hidden");
   } else ck.classList.add("hidden");
+  const quiet = (level === "FRESH" && info.how && info.how !== "AI");   // สด: แสดงผลอย่างเดียว ไม่แสดงผลตรวจ 2 ทางและค่าความมั่นใจ AI
+  if (quiet) ck.classList.add("hidden");
   const v = document.getElementById("verdict"); v.className = "verdict v-" + L.cls;
   document.getElementById("vIcon").textContent = L.icon;
-  let vTh = L.th, vAdv = L.advice;
-  if (level === "FRESH" || level === "WARNING" || level === "SPOILED"){
-    if (info.how === "AI" && probs[0]) vAdv = L.advice + " (ความมั่นใจของ AI " + (probs[0].p*100).toFixed(0) + "%)";
-  } else if (level === "UNSURE" && info.how === "AI" && probs[0]){
-    const t = probs[0], tName = t.key ? LEVELS[t.key].th : t.name;
-    vTh = "ไม่แน่ใจ";
-    vAdv = "อาจเป็น \"" + tName + "\" (ความมั่นใจ " + (t.p*100).toFixed(0) + "% ต่ำกว่าเกณฑ์ " + threshold + "%) ควรจัดฉลากให้อยู่ในกรอบ หลบแสงสะท้อน แล้วสแกนใหม่ หรือตรวจด้วยการดมกลิ่น";
-  }
-  document.getElementById("vLabel").textContent = vTh;
+  document.getElementById("vLabel").textContent = L.th;
   document.getElementById("vEn").textContent = L.en;
-  document.getElementById("vAdvice").textContent = vAdv;
+  document.getElementById("vAdvice").textContent = L.advice;
 
   const bars = document.getElementById("bars"); bars.innerHTML = "";
   document.getElementById("barsCard").classList.toggle("hidden", !probs.length || quiet);
