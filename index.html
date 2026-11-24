@@ -326,7 +326,7 @@
 
 <script>
 /* ================== ตั้งค่า ================== */
-const DEFAULT_MODEL_URL = "https://teachablemachine.withgoogle.com/models/Cv2wLRUxC/";
+const DEFAULT_MODEL_URL = "https://teachablemachine.withgoogle.com/models/j6sUVdUT7/";
 const DEFAULT_THRESHOLD = 60;      // เกณฑ์ไม่แน่ใจ (%)
 const GUIDE_RATIO = 0.62;          // ขนาดกรอบเล็ง เทียบกับด้านกว้างของภาพ (ต้องตรงกับ .guide width ใน CSS)
 const MAX_HISTORY = 50;
@@ -361,6 +361,8 @@ const store = {
 
 /* ================== state ================== */
 let model = null, stream = null;
+// เปลี่ยนเป็นแบบจำลองใหม่: เครื่องที่เคยบันทึกลิงก์เดิมไว้จะถูกเปลี่ยนเป็นลิงก์ใหม่อัตโนมัติ 1 ครั้ง
+if (store.get("ft_model_ver", "") !== DEFAULT_MODEL_URL){ store.set("ft_model_url", DEFAULT_MODEL_URL); store.set("ft_model_ver", DEFAULT_MODEL_URL); }
 let modelUrl = store.get("ft_model_url", DEFAULT_MODEL_URL) || DEFAULT_MODEL_URL;
 let threshold = store.get("ft_threshold", DEFAULT_THRESHOLD);
 let decideMode = store.get("ft_mode3", "combo");
