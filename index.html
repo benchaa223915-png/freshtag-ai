@@ -94,7 +94,7 @@
   .verdict .label{font-size:32px;font-weight:700;margin-top:8px}
   .verdict .en{font-size:13px;opacity:.9;letter-spacing:2px}
   .verdict .advice{margin-top:12px;font-size:16px;background:rgba(255,255,255,.18);border-radius:12px;padding:9px 12px}
-  .v-FRESH{background:linear-gradient(135deg,#0f8f5c,#2cc17f)} .v-WARNING{background:linear-gradient(135deg,#d48806,#f2b632)} .v-SPOILED{background:linear-gradient(135deg,#c73636,#ef6b5b)} .v-CHECK{background:linear-gradient(135deg,#5f6b7d,#8a96a8)} .v-UNSURE{background:linear-gradient(135deg,#5f6b7d,#8a96a8)} .v-NONE{background:linear-gradient(135deg,var(--brand),var(--brand-2))}
+  .v-FRESH{background:linear-gradient(135deg,#0f8f5c,#2cc17f)} .v-WARNING{background:linear-gradient(135deg,#d48806,#f2b632)} .v-SPOILED{background:linear-gradient(135deg,#c73636,#ef6b5b)} .v-CHECK{background:linear-gradient(135deg,#5f6b7d,#8a96a8)} .v-UNSURE{background:linear-gradient(135deg,#5f6b7d,#8a96a8)} .v-NOLABEL{background:linear-gradient(135deg,#3b4250,#5f6b7d)} .v-NONE{background:linear-gradient(135deg,var(--brand),var(--brand-2))}
   .bars .bar{margin:12px 0}
   .bars .top{display:flex;justify-content:space-between;font-size:15px}
   .bars .track{height:12px;border-radius:8px;background:#edf2f6;overflow:hidden;margin-top:5px}
@@ -109,7 +109,7 @@
   .hist-item:last-child{border-bottom:0}
   .hist-item img{width:54px;height:54px;border-radius:10px;flex:none;border:1px solid var(--line)}
   .pill{display:inline-block;font-size:13px;font-weight:700;color:#fff;border-radius:999px;padding:2px 10px}
-  .p-FRESH{background:var(--fresh)} .p-WARNING{background:var(--warn)} .p-SPOILED{background:var(--spoil)} .p-UNSURE,.p-NONE,.p-CHECK{background:var(--unsure)}
+  .p-FRESH{background:var(--fresh)} .p-WARNING{background:var(--warn)} .p-SPOILED{background:var(--spoil)} .p-UNSURE,.p-NONE,.p-CHECK,.p-NOLABEL{background:var(--unsure)}
   label.f{display:block;font-size:14px;font-weight:700;margin:12px 0 6px}
   input[type=text],input[type=number]{width:100%;font:inherit;padding:12px;border-radius:12px;border:1.5px solid var(--line);background:#fff}
   .note{font-size:13px;color:var(--muted);margin-top:6px}
@@ -268,11 +268,11 @@
       <p class="note">ได้จาก Teachable Machine &gt; Export Model &gt; Tensorflow.js &gt; Upload my model</p>
       <label class="f" for="modeIn">วิธีตัดสินผล</label>
       <select id="modeIn" style="width:100%;font:inherit;padding:12px;border-radius:12px;border:1.5px solid var(--line);background:#fff">
-        <option value="ai">AI อย่างเดียว (แนะนำ)</option>
+        <option value="ai">AI ตัดสิน + ค่าสีคอยค้าน (แนะนำ)</option>
         <option value="combo">AI ร่วมกับค่าสีฉลาก</option>
         <option value="color">ค่าสีฉลากอย่างเดียว</option>
       </select>
-      <p class="note">แบบแนะนำใช้ผลจาก AI (Teachable Machine) อย่างเดียว แจ้งผลเมื่อความมั่นใจถึงเกณฑ์ (ค่าเริ่มต้น 60%) ถ้าไม่ถึงจะขึ้นว่า "ไม่แน่ใจ" พร้อมบอกว่าอาจเป็นระดับใด</p>
+      <p class="note">แบบแนะนำใช้ผลจาก AI (Teachable Machine) แจ้งผลเมื่อความมั่นใจถึงเกณฑ์ (ค่าเริ่มต้น 60%) ถ้าไม่ถึงจะขึ้นว่า "ไม่แน่ใจ" พร้อมบอกว่าอาจเป็นระดับใด และถ้า AI บอกว่าสดแต่ค่า Hue ต่ำกว่า 215° แอปจะแสดง 2 คำตอบให้ตรวจซ้ำ</p>
       <label class="f" for="thrIn">เกณฑ์ "ไม่แน่ใจ" ของ AI (%)</label>
       <input type="number" id="thrIn" min="0" max="100" step="5">
       <p class="note">ถ้าค่าความมั่นใจสูงสุดต่ำกว่าค่านี้ แอปจะขอให้สแกนใหม่แทนการเดา</p>
@@ -350,8 +350,9 @@ const LEVELS = {
   NONE:    { th:"ยังไม่มีแบบจำลอง", en:"NO MODEL", icon:"◎", color:"var(--brand-2)", advice:"โหลดแบบจำลอง AI ไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วสแกนใหม่" }
 };
 const RULE = { B_FRESH_MIN:215, B_FRESH_MAX:300, B_SPLIT:185, MIN_SAT:3 };
+LEVELS.NOLABEL = { th:"ไม่พบฉลาก", en:"NO LABEL", icon:"⌀", color:"var(--unsure)", advice:"ภาพมืดเกินไปหรือไม่ใช่ฉลาก FreshTag กรุณาจัดฉลากให้อยู่ในกรอบในที่มีแสงพอ แล้วสแกนใหม่" };
 LEVELS.CHECK = { th:"ไม่แน่ใจ ตรวจซ้ำ", en:"RECHECK", icon:"?", color:"var(--unsure)", advice:"ผลอยู่ระหว่าง 2 ระดับ ควรสแกนซ้ำหรือตรวจด้วยการดมกลิ่น" };
-const ALIASES = { FRESH:["fresh","สด"], WARNING:["warning","warn","เริ่มเสื่อม","เริ่มเสีย"], SPOILED:["spoiled","spoil","ไม่สด","เสีย"] };
+const ALIASES = { FRESH:["fresh","สด"], WARNING:["warning","warn","เริ่มเสื่อม","เริ่มเสีย"], SPOILED:["spoiled","spoil","ไม่สด","เสีย"], NOLABEL:["none","nolabel","no label","background","other","ไม่ใช่ฉลาก","ไม่พบฉลาก","อื่นๆ","อื่น ๆ"] };
 
 /* ================== storage (ปลอดภัย) ================== */
 const store = {
@@ -473,6 +474,17 @@ function colorStats(canvas){
   return { r,g,b,h,s,v };
 }
 
+// ตรวจเบื้องต้นว่าภาพน่าจะเป็นฉลากไหม (กันภาพมืด/ภาพพื้นเรียบ ซึ่ง AI จะเดาเป็น 1 ใน 3 ระดับเสมอ)
+function looksLikeLabel(canvas, col){
+  const d = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+  let sum=0, sq=0, n=0;
+  for (let i=0;i<d.length;i+=16){ const y = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2]; sum+=y; sq+=y*y; n++; }
+  const mean = sum/n, sd = Math.sqrt(Math.max(0, sq/n - mean*mean));
+  if (col.v < 25 || mean < 40) return { ok:false, why:"dark" };    // มืดเกินไป / ภาพดำ
+  if (sd < 6) return { ok:false, why:"flat" };                    // ภาพเรียบ ไม่มีรายละเอียดของฉลาก
+  return { ok:true };
+}
+
 /* ================== analyze ================== */
 async function shoot(){
   const video = document.getElementById("video");
@@ -520,11 +532,23 @@ async function analyze(canvas){
   const btn = document.getElementById("btnShoot"); btn.disabled = true; btn.textContent = "…";
   const col = colorStats(canvas);
   lastCanvas = canvas;
+  const chk = looksLikeLabel(canvas, col);
+  if (!chk.ok){
+    showResult("NOLABEL", [], col, canvas, { how:"GUARD" });
+    btn.disabled = false; btn.textContent = "ตรวจ"; go("result"); return;
+  }
   {
     const ai = await runAI(canvas);
     if (decideMode === "ai"){
-      showResult(ai.level, ai.probs, col, canvas, { how:"AI", ai });
-      saveHistory(ai.level, ai.probs, col, canvas);
+      // AI ตัดสิน แต่ถ้า AI บอก "สด" ขณะที่ Hue ต่ำกว่า 215° (สีบอกว่าเริ่มเสื่อม/ไม่สด) จะไม่แจ้งว่าสด
+      const cbA = colorB3(col);
+      if (ai.level === "FRESH" && (cbA === "WARNING" || cbA === "SPOILED")){
+        showResult("CHECK", ai.probs, col, canvas, { how:"VETO", ai, b:col, color:cbA });
+        saveHistory("CHECK", ai.probs, col, canvas);
+      } else {
+        showResult(ai.level, ai.probs, col, canvas, { how:"AI", ai });
+        saveHistory(ai.level, ai.probs, col, canvas);
+      }
     } else {
       const cb = colorB3(col);
       if (decideMode === "color"){
@@ -593,6 +617,15 @@ function showResult(level, probs, col, canvas, info){
       body.innerHTML = `<div class="colorinfo">${why} จึงใช้ผลจากการอ่านค่าสี<br><b>Hue ${info.b.h}°</b> → <b>${esc(colTh(info.color))}</b><br><span class="muted">${RULE_TXT}</span></div>`;
       ck.classList.remove("hidden");
     }
+  } else if (info.how === "VETO"){
+    const pct = info.ai.probs[0] ? " (ความมั่นใจ " + (info.ai.probs[0].p*100).toFixed(0) + "%)" : "";
+    ck.querySelector("h2").textContent = "ผลตรวจ 2 คำตอบ";
+    body.innerHTML = `<div class="colorinfo">
+      <b>1. ผลจาก AI (Teachable Machine):</b> สด${pct}<br>
+      <b>2. ผลจากการอ่านค่าสี:</b> Hue ${info.b.h}° → ${esc(colTh(info.color))}<br>
+      <span class="muted">${RULE_TXT}</span></div>
+      <p class="note" style="color:#b97c00">AI บอกว่าสด แต่สีของฉลากเปลี่ยนแล้ว แอปจึงยังไม่ยืนยันว่าสด ควรสแกนซ้ำหรือตรวจด้วยการดมกลิ่น</p>`;
+    ck.classList.remove("hidden");
   } else ck.classList.add("hidden");
   const v = document.getElementById("verdict"); v.className = "verdict v-" + L.cls;
   document.getElementById("vIcon").textContent = L.icon;
@@ -610,7 +643,7 @@ function showResult(level, probs, col, canvas, info){
 
   const bars = document.getElementById("bars"); bars.innerHTML = "";
   document.getElementById("barsCard").classList.toggle("hidden", !probs.length || quiet);
-  const order = ["FRESH","WARNING","SPOILED"];
+  const order = ["FRESH","WARNING","SPOILED","NOLABEL"];
   probs.slice().sort((a,b) => (order.indexOf(a.key) + 9*(a.key?0:1)) - (order.indexOf(b.key) + 9*(b.key?0:1))).forEach(p => {
     const info = p.key ? LEVELS[p.key] : { th: p.name, color: "var(--unsure)" };
     const pct = (p.p * 100).toFixed(1);
